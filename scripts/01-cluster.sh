@@ -8,17 +8,20 @@ require eksctl
 [[ "${ADMIN_CIDR}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/32$ ]] || fail 'ADMIN_CIDR must be one public IPv4 address with /32.'
 [[ "$(eksctl version)" == "${EKSCTL_VERSION}" ]] || fail "Use eksctl ${EKSCTL_VERSION}."
 
-# Resolve compatible add-ons exactly once. Re-running uses the saved versions.
-if [[ ! -f "${REPO_DIR}/.local/addons.json" ]]; then
-  addons='[]'
-  for addon in vpc-cni kube-proxy coredns eks-pod-identity-agent metrics-server; do
+# Keep existing pins and resolve only missing add-ons after a script update.
+addons='[]'
+if [[ -f "${REPO_DIR}/.local/addons.json" ]]; then
+  addons="$(cat "${REPO_DIR}/.local/addons.json")"
+fi
+for addon in vpc-cni kube-proxy coredns eks-pod-identity-agent metrics-server; do
+  if ! jq -e --arg name "${addon}" 'any(.[]; .name==$name)' <<<"${addons}" >/dev/null; then
     version="$(aws eks describe-addon-versions --addon-name "${addon}" --kubernetes-version "${EKS_VERSION}" --output json |
       jq -er '[.addons[0].addonVersions[] | select(any(.compatibilities[]; .defaultVersion==true))][0].addonVersion')"
     [[ "${version}" != null && -n "${version}" ]] || fail "No compatible ${addon}."
     addons="$(jq --arg name "${addon}" --arg version "${version}" '. + [{name:$name,version:$version}]' <<<"${addons}")"
-  done
-  printf '%s\n' "${addons}" > "${REPO_DIR}/.local/addons.json"
-fi
+  fi
+done
+printf '%s\n' "${addons}" > "${REPO_DIR}/.local/addons.json"
 jq -n --arg name "${CLUSTER_NAME}" --arg region "${AWS_REGION}" --arg version "${EKS_VERSION}" \
   --arg lab "${LAB_ID}" --arg cidr "${ADMIN_CIDR}" --slurpfile addons "${REPO_DIR}/.local/addons.json" '{
   apiVersion:"eksctl.io/v1alpha5",kind:"ClusterConfig",
