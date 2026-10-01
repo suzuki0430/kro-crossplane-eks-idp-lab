@@ -1,0 +1,244 @@
+apiVersion: kro.run/v1alpha1
+kind: ResourceGraphDefinition
+metadata:
+  name: storage-app
+spec:
+  schema:
+    apiVersion: v1alpha1
+    group: platform.example.com
+    kind: StorageApp
+    scope: Namespaced
+    spec:
+      # Stable storage identity allows explicit reconnection after deleting an app.
+      # One active StorageApp per storageId in this lab namespace.
+      storageId: string | required=true immutable=true maxLength=16 pattern="^[a-z][a-z0-9-]*[a-z0-9]$"
+      image: string | required=true
+      replicas: integer | default=1 minimum=1 maximum=3
+    status:
+      bucketName: ${bucket.metadata.annotations['crossplane.io/external-name']}
+      endpoint: http://${service.metadata.name}.${schema.metadata.namespace}.svc.cluster.local
+      availableReplicas: ${deployment.status.?availableReplicas.orValue(0)}
+      storageMessage: ${bucket.status.?conditions.orValue([]).filter(c, c.type == 'Synced').map(c, c.?message.orValue('')).join('; ')}
+      identityMessage: ${role.status.?conditions.orValue([]).filter(c, c.type == 'Synced').map(c, c.?message.orValue('')).join('; ')}
+      associationMessage: ${association.status.?conditions.orValue([]).filter(c, c.type == 'Synced').map(c, c.?message.orValue('')).join('; ')}
+  resources:
+    - id: platformConfig
+      externalRef:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: storage-platform
+    - id: bucket
+      readyWhen:
+        - ${bucket.status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')}
+        - ${bucket.status.conditions.exists(c, c.type == 'Synced' && c.status == 'True')}
+      template:
+        apiVersion: s3.aws.m.upbound.io/v1beta1
+        kind: Bucket
+        metadata:
+          name: storage-${schema.spec.storageId}
+          annotations:
+            crossplane.io/external-name: ${platformConfig.data.bucketPrefix}${schema.spec.storageId}
+        spec:
+          # No Delete action: removing the MR preserves both bucket and objects.
+          managementPolicies: [Observe, Create, Update, LateInitialize]
+          providerConfigRef: {name: aws, kind: ProviderConfig}
+          forProvider:
+            region: ${platformConfig.data.region}
+            forceDestroy: false
+            tags:
+              ManagedBy: kro-crossplane-idp-lab
+              LabId: ${platformConfig.data.labId}
+              StorageId: ${schema.spec.storageId}
+    - id: publicAccess
+      readyWhen:
+        - ${publicAccess.status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')}
+        - ${publicAccess.status.conditions.exists(c, c.type == 'Synced' && c.status == 'True')}
+      template:
+        apiVersion: s3.aws.m.upbound.io/v1beta1
+        kind: BucketPublicAccessBlock
+        metadata:
+          name: storage-${schema.spec.storageId}
+        spec:
+          # The retained bucket must also retain its protection settings.
+          managementPolicies: [Observe, Create, Update, LateInitialize]
+          providerConfigRef: {name: aws, kind: ProviderConfig}
+          forProvider:
+            region: ${platformConfig.data.region}
+            bucket: ${bucket.metadata.annotations['crossplane.io/external-name']}
+            blockPublicAcls: true
+            blockPublicPolicy: true
+            ignorePublicAcls: true
+            restrictPublicBuckets: true
+    - id: encryption
+      readyWhen:
+        - ${encryption.status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')}
+        - ${encryption.status.conditions.exists(c, c.type == 'Synced' && c.status == 'True')}
+      template:
+        apiVersion: s3.aws.m.upbound.io/v1beta1
+        kind: BucketServerSideEncryptionConfiguration
+        metadata:
+          name: storage-${schema.spec.storageId}
+        spec:
+          managementPolicies: [Observe, Create, Update, LateInitialize]
+          providerConfigRef: {name: aws, kind: ProviderConfig}
+          forProvider:
+            region: ${platformConfig.data.region}
+            bucket: ${bucket.metadata.annotations['crossplane.io/external-name']}
+            rule:
+              - applyServerSideEncryptionByDefault:
+                  sseAlgorithm: AES256
+    - id: serviceAccount
+      template:
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: storage-${schema.spec.storageId}
+        automountServiceAccountToken: false
+    - id: role
+      readyWhen:
+        - ${role.status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')}
+        - ${role.status.conditions.exists(c, c.type == 'Synced' && c.status == 'True')}
+      template:
+        apiVersion: iam.aws.m.upbound.io/v1beta1
+        kind: Role
+        metadata:
+          name: storage-${schema.spec.storageId}
+          annotations:
+            crossplane.io/external-name: idplab-${platformConfig.data.labId}-${schema.spec.storageId}
+        spec:
+          managementPolicies: ['*']
+          providerConfigRef: {name: aws, kind: ProviderConfig}
+          forProvider:
+            path: /idplab/${platformConfig.data.labId}/workloads/
+            permissionsBoundary: ${platformConfig.data.boundaryArn}
+            assumeRolePolicy: |
+              {"Version":"2012-10-17","Statement":[{
+                "Effect":"Allow","Principal":{"Service":"pods.eks.amazonaws.com"},
+                "Action":["sts:AssumeRole","sts:TagSession"],
+                "Condition":{"StringEquals":{
+                  "aws:RequestTag/eks-cluster-arn":"${platformConfig.data.clusterArn}",
+                  "aws:RequestTag/kubernetes-namespace":"${schema.metadata.namespace}",
+                  "aws:RequestTag/kubernetes-service-account":"${serviceAccount.metadata.name}"
+                }}
+              }]}
+            tags:
+              ManagedBy: kro-crossplane-idp-lab
+              LabId: ${platformConfig.data.labId}
+    - id: rolePolicy
+      readyWhen:
+        - ${rolePolicy.status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')}
+        - ${rolePolicy.status.conditions.exists(c, c.type == 'Synced' && c.status == 'True')}
+      template:
+        apiVersion: iam.aws.m.upbound.io/v1beta1
+        kind: RolePolicy
+        metadata:
+          name: storage-${schema.spec.storageId}
+        spec:
+          managementPolicies: ['*']
+          providerConfigRef: {name: aws, kind: ProviderConfig}
+          forProvider:
+            role: ${role.metadata.annotations['crossplane.io/external-name']}
+            policy: |
+              {"Version":"2012-10-17","Statement":[
+                {"Effect":"Allow","Action":["s3:GetObject","s3:PutObject"],
+                 "Resource":["arn:aws:s3:::${bucket.metadata.annotations['crossplane.io/external-name']}/uploads/*",
+                             "arn:aws:s3:::${bucket.metadata.annotations['crossplane.io/external-name']}/_health/*"]},
+                {"Effect":"Allow","Action":"s3:DeleteObject",
+                 "Resource":"arn:aws:s3:::${bucket.metadata.annotations['crossplane.io/external-name']}/_health/*"},
+                {"Effect":"Allow","Action":"s3:ListBucket",
+                 "Resource":"arn:aws:s3:::${bucket.metadata.annotations['crossplane.io/external-name']}"}
+              ]}
+    - id: association
+      readyWhen:
+        - ${association.status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')}
+        - ${association.status.conditions.exists(c, c.type == 'Synced' && c.status == 'True')}
+      template:
+        apiVersion: eks.aws.m.upbound.io/v1beta1
+        kind: PodIdentityAssociation
+        metadata:
+          name: storage-${schema.spec.storageId}
+          annotations:
+            # A real reference makes policy readiness an explicit graph dependency.
+            platform.example.com/policy: ${rolePolicy.metadata.name}
+        spec:
+          managementPolicies: ['*']
+          providerConfigRef: {name: aws, kind: ProviderConfig}
+          forProvider:
+            region: ${platformConfig.data.region}
+            clusterName: ${platformConfig.data.clusterName}
+            namespace: ${schema.metadata.namespace}
+            serviceAccount: ${serviceAccount.metadata.name}
+            roleArn: ${role.status.atProvider.arn}
+            disableSessionTags: false
+            tags:
+              ManagedBy: kro-crossplane-idp-lab
+              LabId: ${platformConfig.data.labId}
+    - id: deployment
+      readyWhen:
+        - ${deployment.status.observedGeneration == deployment.metadata.generation}
+        - ${deployment.status.?updatedReplicas.orValue(0) == deployment.spec.replicas}
+        - ${deployment.status.?availableReplicas.orValue(0) == deployment.spec.replicas}
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: storage-${schema.spec.storageId}
+        spec:
+          replicas: ${schema.spec.replicas}
+          progressDeadlineSeconds: 180
+          selector:
+            matchLabels: {app.kubernetes.io/name: 'storage-${schema.spec.storageId}'}
+          template:
+            metadata:
+              labels: {app.kubernetes.io/name: 'storage-${schema.spec.storageId}'}
+              annotations:
+                platform.example.com/association: ${association.status.atProvider.associationId}
+                platform.example.com/public-access: ${publicAccess.metadata.name}
+                platform.example.com/encryption: ${encryption.metadata.name}
+            spec:
+              serviceAccountName: ${serviceAccount.metadata.name}
+              automountServiceAccountToken: false
+              terminationGracePeriodSeconds: 15
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65532
+                runAsGroup: 65532
+                seccompProfile: {type: RuntimeDefault}
+              containers:
+                - name: api
+                  image: ${schema.spec.image}
+                  imagePullPolicy: IfNotPresent
+                  ports: [{name: http, containerPort: 8080}]
+                  env:
+                    - {name: AWS_REGION, value: '${platformConfig.data.region}'}
+                    - {name: S3_BUCKET, value: "${bucket.metadata.annotations['crossplane.io/external-name']}"}
+                    - {name: AWS_EC2_METADATA_DISABLED, value: 'true'}
+                    - name: HOSTNAME
+                      valueFrom: {fieldRef: {fieldPath: metadata.name}}
+                  readinessProbe:
+                    httpGet: {path: /readyz, port: http}
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 2
+                  livenessProbe:
+                    httpGet: {path: /healthz, port: http}
+                    periodSeconds: 20
+                    timeoutSeconds: 2
+                  resources:
+                    requests: {cpu: 50m, memory: 64Mi}
+                    limits: {cpu: 500m, memory: 128Mi}
+                  securityContext:
+                    readOnlyRootFilesystem: true
+                    allowPrivilegeEscalation: false
+                    capabilities: {drop: [ALL]}
+    - id: service
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: storage-${schema.spec.storageId}
+        spec:
+          type: ClusterIP
+          selector: {app.kubernetes.io/name: 'storage-${schema.spec.storageId}'}
+          ports: [{port: 80, targetPort: http}]
