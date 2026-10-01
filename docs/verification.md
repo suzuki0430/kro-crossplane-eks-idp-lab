@@ -18,11 +18,11 @@
 | 実S3のHTTP Put/Get、404、RBAC | 未実行 |
 | 権限不足→Ready=False→復旧 | 未実行 |
 | 削除時のS3保持・再接続 | 未実行 |
-| 途中まで作成したEKSの後片付け | 実施中 |
+| 途中まで作成したEKSの後片付け | EKS / VPC等のCloudFormation stackはDELETE_COMPLETE。kindも削除済み |
 
 kindではAWS Providerを動かさず、実CRDと実KROに対してManaged Resourceのstatusのみを模擬する。
 これはIAM認証やAWSリソースのライフサイクルの証明にはならない。
 実環境のアカウントID、IP、ARN、kubeconfig、ログはGit除外の `.local/` に保存する。
 
 EKSコントロールプレーンの作成まで進んだ時点で検証延期の指示を受けた。
-アプリ・S3・ワークロードIAMの作成や実AWSでの動作確認は行わず、作成済みインフラを片付ける。
+アプリ・S3・ワークロードIAMの作成や実AWSでの動作確認は行わず、作成済みインフラを削除した。
