@@ -1,0 +1,12 @@
+apiVersion: apiextensions.crossplane.io/v1alpha1
+kind: ManagedResourceActivationPolicy
+metadata:
+  name: storage-app
+spec:
+  activate:
+    - buckets.s3.aws.m.upbound.io
+    - bucketpublicaccessblocks.s3.aws.m.upbound.io
+    - bucketserversideencryptionconfigurations.s3.aws.m.upbound.io
+    - roles.iam.aws.m.upbound.io
+    - rolepolicies.iam.aws.m.upbound.io
+    - podidentityassociations.eks.aws.m.upbound.io

@@ -1,0 +1,8 @@
+.env
+.local/
+.cache/
+*.log
+*.kubeconfig
+coverage.out
+app/server
+.DS_Store

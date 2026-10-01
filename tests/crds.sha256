@@ -1,0 +1,7 @@
+bfea79496d36490e1793a76ffd11ef86f3bd7e9442d6cb9634e47f10acd0512a  tests/crds/aws.m.upbound.io_providerconfigs.yaml
+339d2cc26bca878396fc62170742d619657c1087ead063429bc3ae0784eeefc6  tests/crds/eks.aws.m.upbound.io_podidentityassociations.yaml
+d56e4598741bc0834b1fc8f4b03e1c6ba0021c992043c2996d42ea794225425d  tests/crds/iam.aws.m.upbound.io_rolepolicies.yaml
+ee219a44e2589deb8320126ff5c019327ca56a52b3f40d60b1b9c8634295b29d  tests/crds/iam.aws.m.upbound.io_roles.yaml
+8c714a8c3a551fd2027bb392495cde85eb989ca49f92e9c4dbca51f022ef6c24  tests/crds/s3.aws.m.upbound.io_bucketpublicaccessblocks.yaml
+560f91b929286e224839116a9933ecfcbe12352ddf1dd6a2db140a98d1f25ab5  tests/crds/s3.aws.m.upbound.io_buckets.yaml
+793e28f613abd06cfb4b0adab0acf82e73d0002c5b70538bcfa7fff7c2d7986e  tests/crds/s3.aws.m.upbound.io_bucketserversideencryptionconfigurations.yaml

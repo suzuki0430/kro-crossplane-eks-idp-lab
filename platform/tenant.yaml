@@ -1,0 +1,45 @@
+apiVersion: aws.m.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: aws
+  namespace: idp-lab
+spec:
+  credentials:
+    source: PodIdentity
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: storage-app-developer
+  namespace: idp-lab
+rules:
+  - apiGroups: [platform.example.com]
+    resources: [storageapps]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ['']
+    resources: [pods, events, services]
+    verbs: [get, list, watch]
+  - apiGroups: ['']
+    resources: [pods/log]
+    verbs: [get]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: developer-demo
+  namespace: idp-lab
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: storage-app-developer-demo
+  namespace: idp-lab
+subjects:
+  - kind: ServiceAccount
+    name: developer-demo
+    namespace: idp-lab
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: storage-app-developer
