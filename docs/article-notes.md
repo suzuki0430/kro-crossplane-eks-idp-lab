@@ -1,72 +1,47 @@
-# Qiita記事用メモ
+# Qiita記事の編集メモ
 
-仮題: **KRO + Crossplane + EKSでS3付きアプリをセルフサービス化する――「作成できた」と「使える」を分けて検証した**
+本文は [qiita-draft.md](qiita-draft.md)。スクショ8枚と図3枚を挿入済み。
+実際の検証結果は [verification.md](verification.md)、認証の試験範囲は [security-review.md](security-review.md) に残す。
 
-実測の出典は [検証記録](verification.md)、挿入画像は [スクショ一覧](screenshots/)。
-本文は以下の順に組み立てると、API設計・運用・実AWS特有の問題がつながる。
+## 感想を書き足す場所
 
-## 1. 開発者にはStorageAppを1つ渡す
+本文の「追記メモ①〜③」を検索すると、その場所へ移動できる。
 
-`spec.storageId`、`spec.image`、`spec.replicas` の3項目を見せる。
-開発者のServiceAccountで作成・更新し、IAMのMRやplatform用ConfigMapは変更できない。
-storageIdの変更とreplicas=4はAPIサーバーが拒否することも実EKSで確認した。
+| 場所 | 書き足す内容の候補 |
+|---|---|
+| ① 導入の後 | 自社での依頼・作業の流れ、減らしたい待ち時間、IDPを調べる動機 |
+| ② Ready・復旧の後 | 実アクセスまで確認する設計への感想。常時probe・初回疎通・別監視をどう分けたいか |
+| ③ 最後 | KROとCrossplaneの分担への感想。自社で最初に固めたい契約と、次に比較したい構成 |
 
-構成図はREADMEのMermaidを利用する。今回のCrossplaneはAWS Providerの実行基盤として使い、
-KROが独自APIとリソース間の依存関係を組み立てる。CrossplaneのCompositionは使っていない。
-「KROが必須」と一般化せず、自社IDPでどの層にAPI・依存・運用契約を持たせるかという比較材料にする。
+本人の感想や会社固有の事情は代筆で決めず、追記欄としている。技術的な観測結果は本文まで記述済み。
 
-## 2. バージョンとAPIを固定する
+## 公開時の仕上げ
 
-KRO 0.9.4 / Crossplane 2.4.2 / AWS Provider 2.8.1 / EKS 1.36。
-Providerのnamespaced MRは `*.aws.m.upbound.io`。S3保持にはmanagementPoliciesからDeleteを除く。
-EKSアドオンは実行時に互換版を解決し、取得した版を保存した。記事にはversions.jsonの実測値を載せる。
+1. 記事タイトルをQiitaのタイトル欄へ、本文を本文欄へ貼り付ける。
+2. 冒頭の下書き注記と「追記メモ」を削除するか、自分の文章に置き換える。
+3. タグ候補は `AWS`、`kubernetes`、`eks`、`crossplane`、`kro`。
+4. Qiitaのプレビューで画像・コードブロック・表を確認する。
 
-挿入: `01-eks-active.jpg`。EKSコントロールプレーンがActive、1.36、Standard supportである実コンソール。
+画像と実装・証跡へのリンクは、公開GitHubリポジトリのコミット
+`49a3bae7e3c6198f3a15caefa5adbd2f41d5b658` に固定した。
+PRブランチ削除後もブランチ名に依存しない。本文の画像は絶対URLなので、相対パスの修正なしで貼り付けられる。
+Qiita側に画像を置きたい場合は [screenshots/](screenshots/) と [diagrams/](diagrams/) のPNG/JPEGを
+アップロードし、対応する画像URLを置き換える。リポジトリ内のファイルを変更した場合も、固定URLの更新が必要。
 
-## 3. 作成と本当のReadyを確認する
+記事は下書きで、Qiitaへの投稿・公開はしていない。
 
-S3・IAM Role/Policy・Pod Identity Association・Deployment・Serviceまで依存順に作る。
-PodのreadinessはS3の一時オブジェクトをPut/Get/Deleteして内容一致を確認する。
-HTTP経由でバイナリをアップロードし、ダウンロード結果とのSHA256一致を示す。
+## 図とスクショの扱い
 
-挿入: `02-ready.jpg`。保存した実CLI出力をブラウザで表示した画面であることを明記する。
+- [構成図・障害伝播図・保持と再接続の図](diagrams/) はPNGと編集可能なSVGを保存している。
+- [スクショ一覧](screenshots/README.md) に出典とキャプションがある。AWSコンソールは01・07・08、実CLI出力をHTMLで表示した画面は02〜06。
+- AWSコンソールのアカウント情報を撮影範囲から除き、CLIテキストのアカウントIDを置換している。
+- 画像は2026-10-02の記録。検証後のEKSは削除済みで、保持S3と結果だけが残っている。
 
-## 4. インフラReadyでもアプリは使えない状態を作る
+## 編集しても残したい技術上の区別
 
-アプリの `_health/*` に対するPutObjectを一時的にDenyする。
-6種類のMRのReady/SyncedはすべてTrueのまま、S3は403、Deploymentは0/1、StorageAppはReady=Falseになった。
-Denyを取り除くと、Pod再作成コマンドなしでReady=Trueに戻った。
-
-挿入: `03-failure.jpg` と `04-recovered.jpg`。記事の中心となる比較。
-`Ready` の意味を、クラウドリソースの存在・コントローラーの同期・アプリの実利用可能性に分けて説明する。
-
-## 5. 削除はデータのライフサイクル設計
-
-StorageAppの削除でPod Identity・IAM・Kubernetesリソースを片付ける。
-S3のMRも消えるが、AWS上にはバケット・データ・公開ブロック・暗号化が残る。
-同じstorageIdで再作成し、元のファイルを新PodからHTTP GETできた。再アップロードはしていない。
-最後はEKSまで削除し、保持対象のS3と検証結果を残す。
-
-挿入: `05-retained.jpg` と `06-reconnected.jpg`。S3コンソールのオブジェクト画面も補助に使う。
-保持はバックアップではない。保持期限・所有権・再接続権限・別クラスタへの復旧は別の設計課題。
-
-## 6. kindだけでは分からなかった3つの注意点
-
-1. 存在しないIAM RoleのObserveが、パス限定GetRoleで403になった。同じラボ名のrootパスにGetRoleだけ追加。
-2. Pod Identity Association作成にも対象RoleのGetRoleが必要だった。EKS Providerにworkloadsパス限定で追加。
-3. AssociationのReady直後のPodで認証設定の注入が間に合わなかった。同じ設定でPodを再作成すると動作した。
-   最終実装ではAWSの公開仕様に沿った環境変数と投影トークンをDeploymentへ明示し、再作成時も動作確認した。
-
-詳細・一次資料・修正前のエラーは [verification.md](verification.md#実awsで見つかった3点と修正) を引用する。
-初回の約507秒は調査と修正を含むため、通常のプロビジョニング性能として紹介しない。
-
-## 7. 自社IDPへの宿題
-
-- APIの所有権: Namespace、storageIdの一意性、誰が同じデータへ再接続できるか。
-- 権限: 任意イメージを許可するか、Pod Identityを使う主体をどう管理するか。
-- 状態: S3操作を伴うreadinessの頻度・リクエスト数、障害時のエラーの見せ方。
-- データ: 保持期間、バックアップ、削除承認、管理クラスタ喪失後の復旧。
-- 更新: RGD・Provider・アプリの段階的更新、互換性試験、ロールバック。
-
-共有Namespaceの学習デモであり、敵対的マルチテナントの安全性を証明したとは書かない。
-IAMシミュレーションの拒否結果と、実AWS APIで確認した動作を区別する。
+- Crossplane v2単独でもKubernetesリソースを合成できる。KRO併用は今回の設計上の選択。
+- 障害実験のDeny対象は `_health/*`。`uploads/*` も403になったという実測ではない。
+- IAMシミュレーションと、実認証情報でのAWS API試験を混同しない。
+- 同じstorageIdでの再接続は同一アカウント・同一ラボ設定で検証。別クラスタ復旧や任意バケットimportは未検証。
+- Pod Identityの注入が間に合わなかった観測から、AWS内部キャッシュの原因までは断定しない。
+- 初回作成の約507秒は調査・修正込み。通常のプロビジョニング時間として使わない。
