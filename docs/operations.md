@@ -49,3 +49,20 @@ Bootstrap作成済みならそのstackも削除する。アプリ作成済みな
 `versions.env`、Helmハッシュ、イメージdigest、Go依存、同じProviderタグのCRDをまとめて更新する。
 `make check test graph` の後、別LAB_IDで実EKS上の作成・失敗・保持・削除を確認する。
 Helm更新だけでCRDも更新済みと仮定しない。既存IDPのin-placeアップグレードは本ラボの対象外。
+
+## 記事用の証跡
+
+`make verify failure retention` は、各段階のCLI出力を `.local/evidence/*.txt` に保存する。
+Ready、Deployment、6種類のMRのConditions、ファイルのSHA256、S3保護設定を記録する。
+障害状態はDenyを外す前、保持状態はStorageAppを再作成する前に採取する。
+
+```bash
+uv run --no-project python scripts/render-evidence.py .local/evidence
+# localhostだけに公開し、ブラウザで各HTMLを開いて撮影する
+uv run --no-project python -m http.server 18081 --bind 127.0.0.1 --directory .local/evidence
+```
+
+HTMLは保存済みの実CLI出力を表示するための画面で、AWSコンソールとは区別する。
+アカウントIDは採取時に `ACCOUNT_ID` へ置換する。公開前に内容を目視確認し、
+レビュー済みのテキストとスクリーンショットだけを `docs/` へコピーする。
+元のログやkubeconfig、認証情報を公開用ディレクトリに移さない。

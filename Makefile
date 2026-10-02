@@ -8,6 +8,8 @@ check:
 	cd app && test -z "$$(gofmt -l .)" && go vet ./...
 	uv tool run --from shellcheck-py==0.11.0.1 shellcheck scripts/*.sh tests/*.sh
 	uv tool run --from cfn-lint==1.57.1 cfn-lint infrastructure/bootstrap.yaml
+	uv tool run --from ruff==0.13.3 ruff check scripts/render-evidence.py
+	uv tool run --from ruff==0.13.3 ruff format --check scripts/render-evidence.py
 	shasum -a 256 -c tests/crds.sha256
 
 test:
