@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: tools check test graph cluster bootstrap platform image demo verify failure retention cleanup
+.PHONY: tools check test graph cluster bootstrap platform image demo verify verify-iam failure retention cleanup
 tools:
 	bash scripts/install-tools.sh
 
@@ -30,6 +30,8 @@ demo:
 	bash scripts/05-demo.sh
 verify:
 	bash scripts/verify.sh
+verify-iam:
+	bash scripts/verify-iam-policy.sh
 failure:
 	bash scripts/experiment-failure.sh
 retention:
