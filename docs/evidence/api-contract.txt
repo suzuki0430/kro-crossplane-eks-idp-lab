@@ -1,0 +1,21 @@
+Captured: 2026-10-02T12:43:29Z
+
+StorageApp API validation (real EKS API server)
+The StorageApp "demo" is invalid: spec.storageId: Invalid value: "changed": field is immutable
+The StorageApp "demo" is invalid: spec.replicas: Invalid value: 4: spec.replicas in body should be less than or equal to 3
+
+Scale 1 -> 2 through the developer-facing API
+storageapp.platform.example.com/demo patched
+storageapp.platform.example.com/demo condition met
+storageapp.platform.example.com/demo condition met
+NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+storage-demo   2/2     2            2           2m8s
+
+Scale 2 -> 1
+storageapp.platform.example.com/demo patched
+storageapp.platform.example.com/demo condition met
+storageapp.platform.example.com/demo condition met
+NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+storage-demo   1/1     1            1           2m11s
+
+PASS: immutable storageId, replica limit, and live 1 -> 2 -> 1 scaling.

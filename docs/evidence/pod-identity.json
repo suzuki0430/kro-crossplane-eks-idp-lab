@@ -1,0 +1,40 @@
+{
+  "description": "Actual Pod specs before the fix and after deletion/reconnection; values and tokens omitted.",
+  "before": {
+    "name": "storage-demo-68c485c669-ftkqw",
+    "created": "2026-10-02T12:32:58Z",
+    "serviceAccount": "storage-demo",
+    "envNames": [
+      "AWS_REGION",
+      "S3_BUCKET",
+      "AWS_EC2_METADATA_DISABLED",
+      "HOSTNAME"
+    ],
+    "restartCounts": [
+      0
+    ],
+    "ready": [
+      "False"
+    ]
+  },
+  "after": {
+    "name": "storage-demo-5cf76b97b7-f9lpt",
+    "created": "2026-10-02T12:41:26Z",
+    "serviceAccount": "storage-demo",
+    "envNames": [
+      "AWS_REGION",
+      "S3_BUCKET",
+      "AWS_EC2_METADATA_DISABLED",
+      "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+      "AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE",
+      "HOSTNAME",
+      "AWS_STS_REGIONAL_ENDPOINTS"
+    ],
+    "restartCounts": [
+      0
+    ],
+    "ready": [
+      "True"
+    ]
+  }
+}

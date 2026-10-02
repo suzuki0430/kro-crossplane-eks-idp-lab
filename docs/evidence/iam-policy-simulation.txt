@@ -1,0 +1,7 @@
+PASS (IAM simulation): iam:GetRole                          allowed      arn:aws:iam::ACCOUNT_ID:role/idplab-kro1002a-demo
+PASS (IAM simulation): iam:GetRole                          allowed      arn:aws:iam::ACCOUNT_ID:role/idplab/kro1002a/workloads/idplab-kro1002a-demo
+PASS (IAM simulation): iam:GetRole                          implicitDeny arn:aws:iam::ACCOUNT_ID:role/idplab-unrelated-demo
+PASS (IAM simulation): iam:CreateRole                       allowed      arn:aws:iam::ACCOUNT_ID:role/idplab/kro1002a/workloads/idplab-kro1002a-demo
+PASS (IAM simulation): iam:CreateRole                       implicitDeny arn:aws:iam::ACCOUNT_ID:role/idplab/kro1002a/workloads/idplab-kro1002a-demo
+PASS (IAM simulation): iam:CreateRole                       implicitDeny arn:aws:iam::ACCOUNT_ID:role/idplab-kro1002a-demo
+PASS (IAM simulation): iam:DeleteRolePermissionsBoundary    implicitDeny arn:aws:iam::ACCOUNT_ID:role/idplab/kro1002a/workloads/idplab-kro1002a-demo
