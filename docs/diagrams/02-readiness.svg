@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1010" viewBox="0 0 1280 1010" role="img" aria-labelledby="title desc">
+  <title id="title">MRがReadyでも、アプリの実アクセスは失敗し得る</title>
+  <desc id="desc">ヘルスチェック用S3プレフィックスのPutObjectをDenyした実験。6種類のMRはReadyとSyncedがTrueのまま、S3は403、readinessは失敗、Deploymentは0/1、StorageAppはReady Falseとなった。専用Denyを取り除くと、Pod再作成コマンドなしで復旧した。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#a94b40"/></marker>
+    <style>
+      text { font-family: 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif; fill: #182d47; }
+      .title { font-size: 34px; font-weight: 700; } .label { font-size: 26px; font-weight: 600; }
+      .body { font-size: 22px; } .small { font-size: 20px; fill: #526279; }
+      .line { fill: none; stroke: #a94b40; stroke-width: 3; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1280" height="1010" fill="#f8fafc"/>
+  <text x="48" y="60" class="title">AWSリソースのReadyと、アプリのReady</text>
+  <text x="48" y="100" class="body">_health/* のPutObjectだけをDenyした実験で観測</text>
+
+  <rect x="48" y="142" width="404" height="601" rx="20" fill="#e6f4ef" stroke="#b3d8c9" stroke-width="2"/>
+  <text x="76" y="190" class="label">Providerが見るリソース</text>
+  <text x="76" y="231" class="body">Bucket / 公開ブロック / 暗号化</text>
+  <text x="76" y="267" class="body">Role / RolePolicy / Association</text>
+  <rect x="76" y="313" width="348" height="117" rx="14" fill="white"/>
+  <text x="250" y="359" text-anchor="middle" class="label" style="fill:#087f70">Ready = True</text>
+  <text x="250" y="399" text-anchor="middle" class="label" style="fill:#087f70">Synced = True</text>
+  <text x="76" y="486" class="body">6種類すべて、Trueのまま</text>
+  <text x="76" y="539" class="small">バケットやAssociationは存在する。</text>
+  <text x="76" y="571" class="small">管理中のRolePolicyとは別に、</text>
+  <text x="76" y="603" class="small">実験用Denyポリシーを追加した。</text>
+  <text x="76" y="683" class="body" style="font-weight:600">MRのReadyだけでは分からない</text>
+
+  <rect x="500" y="142" width="732" height="601" rx="20" fill="#fff0ed" stroke="#e9c1b9" stroke-width="2"/>
+  <text x="528" y="190" class="label">アプリからの実アクセスと状態の伝播</text>
+  <rect x="540" y="215" width="652" height="82" rx="14" fill="white" stroke="#c57565"/>
+  <text x="866" y="249" text-anchor="middle" class="label">S3 PutObject → 403 / AccessDenied</text>
+  <text x="866" y="278" text-anchor="middle" class="small">対象はヘルスチェック用の _health/*</text>
+  <path d="M866 297 V334" class="line"/>
+  <rect x="540" y="340" width="652" height="82" rx="14" fill="white" stroke="#c57565"/>
+  <text x="866" y="374" text-anchor="middle" class="label">readinessが失敗 → PodがNotReady</text>
+  <text x="866" y="403" text-anchor="middle" class="small">livenessはAWSに依存しない</text>
+  <path d="M866 422 V459" class="line"/>
+  <rect x="540" y="465" width="652" height="82" rx="14" fill="white" stroke="#c57565"/>
+  <text x="866" y="499" text-anchor="middle" class="label">Deployment = 0/1</text>
+  <text x="866" y="528" text-anchor="middle" class="small">availableReplicasが要求数を満たさない</text>
+  <path d="M866 547 V584" class="line"/>
+  <rect x="540" y="590" width="652" height="111" rx="14" fill="#a94b40"/>
+  <text x="866" y="634" text-anchor="middle" class="label" style="fill:white">StorageApp Ready = False</text>
+  <text x="866" y="674" text-anchor="middle" class="body" style="fill:white">KROのreadyWhenで開発者APIへ反映</text>
+
+  <rect x="48" y="783" width="1184" height="106" rx="16" fill="#e6f4ef" stroke="#b3d8c9"/>
+  <text x="76" y="826" class="label" style="fill:#087f70">復旧：専用Denyを除去 → Deployment 1/1 → StorageApp Ready=True</text>
+  <text x="76" y="864" class="body">Podを再作成するコマンドは実行せず、readinessとコントローラーの再試行で復旧。</text>
+  <text x="48" y="940" class="small">この図はuploads/*の403を示すものではない。利用経路は別のHTTP Put/Get試験で確認した。</text>
+  <text x="48" y="975" class="small">状態反映にはprobe周期やreconcileの遅延がある。2026-10-02の実AWS検証から作図。</text>
+</svg>
