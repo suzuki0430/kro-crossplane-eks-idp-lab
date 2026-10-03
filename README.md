@@ -24,6 +24,8 @@ flowchart LR
 
 CrossplaneのCompositionは使わず、KROがnamespaced Managed Resourceを直接生成します。
 Crossplane v2単独でもKubernetesリソースを合成できるため、これは学習のための設計上の選択です。
+KRO本体はAWS APIを操作しません。S3やIAMの作成には、今回のAWS Providerのような実行担当が別に必要です。
+KROを使わずCrossplane側にまとめる場合は、Provider等を用意し、API定義・Compositionへ作り替えます。
 EKSとProviderの認証はeksctl / CloudFormationで先に用意し、起動依存を避けます。
 
 ## バージョン
@@ -106,6 +108,8 @@ make cleanup        # EKS・VPC・ECR・IAMを削除。S3は保持
 ```
 
 `make cluster` は新規作成用です。既存EKSのアップグレードには使いません。
+今回のアプリデプロイはCLIから実行しました。`make demo` の実体は `scripts/05-demo.sh` で、
+開発者ServiceAccountとしてStorageAppを `kubectl apply` します。GitHub Actionsは検証用で、EKSへのデプロイは行いません。
 作成途中の障害や後片付けは [docs/operations.md](docs/operations.md) を参照してください。
 
 ## アプリを触る

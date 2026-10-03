@@ -1,74 +1,73 @@
-# KRO + Crossplane + EKSでS3付きアプリをセルフサービス化する――「作成できた」と「使える」を検証した
+# KRO + Crossplaneで、S3付きアプリをEKSに作ってみた。両方いる？ 消したらデータはどうなる？
 
-> 編集用の下書きです。本文中の「追記メモ」は、感想や自社の事情を加えるための場所です。公開時に削除してください。
+> 編集用の下書きです。「追記メモ」は自分の感想を書き足す場所として残しています。公開するときに置き換えるか、削除してください。
 
-自社のIDP（Internal Developer Platform）を考えるために、KROとCrossplaneを組み合わせて、小さなセルフサービスAPIを作りました。
+自社のIDP（Internal Developer Platform）を考えるために、KROとCrossplaneを触ってみました。題材は、S3にファイルを保存する小さなアプリです。
 
-開発者が `StorageApp` というKubernetesのカスタムリソースを1つ作ると、アプリのDeploymentに加えて、専用のS3バケット、IAMロール、EKS Pod Identity Associationが用意される構成です。
+やりたいことは、「このイメージでアプリを動かしたい」と伝えたら、Deploymentだけでなく、そのアプリ用のS3とIAMも一緒に用意してくれること。開発者が毎回バケットや権限を個別に設定しなくて済む形を目指します。
 
-今回確かめたかったのは、作成後の振る舞いです。AWSのリソースがReadyになっても、アプリから使えるとは限りません。また、アプリを削除するとき、データまで同じ寿命にしてよいのかも決める必要があります。
+ただ、その前に整理したいことがあります。**KROとCrossplaneは、そもそも両方必要なのか。** 今回はここから説明して、実際のデプロイ、権限を壊したときの動き、アプリを消した後のデータまで見ていきます。
 
-そこで、新規EKS上で次の流れを実行しました。
+検証したのは2026年10月2日、東京リージョンの新規EKSです。[実装リポジトリ](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab) と [詳しい検証記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/verification.md) も公開しています。
 
-1. アプリ経由でS3へファイルを保存し、取得したバイト列が一致することを確認する。
-2. 権限を一時的に不足させ、StorageAppのReadyが変わることと、復旧することを確認する。
-3. アプリを削除してS3を残し、同じIDで作り直したアプリから元のファイルを取得する。
+> **追記メモ①：** 自社で今、ストレージやIAMの依頼をどう受けているか。どこが面倒で、何を減らしたくてIDPを調べているかを2〜3文足す。
 
-結果として、この3つを確認できました。一方、実AWSに載せて初めて分かったIAM権限とPod Identityの注意点もありました。この記事では、成功した構成と、そこまでに直した部分を紹介します。
+## まず、KROとCrossplaneは両方必要？
 
-実装は [kro-crossplane-eks-idp-lab](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab)、詳しい記録は [AWS検証記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/verification.md) に置いています。検証日は **2026年10月2日**、リージョンは東京です。
+今回の目的なら、**Crossplane v2側にまとめても実現できます。KROの併用は必須ではありません。**
 
-> **追記メモ①：** 自社で今、アプリ用ストレージやIAMの依頼をどう受けているか。どの待ち時間・手作業を減らしたくてIDPを調べているかを、公開できる範囲で2〜3文足す。
+ここで「Crossplaneだけ」と呼ぶのは、AWS ProviderやCompositionで使うFunctionなどを組み込んだ、KROを使わない構成のことです。Crossplane本体をインストールするだけでAWSを操作できる、という意味ではありません。[Compositionの構成手順](https://docs.crossplane.io/v2.4/get-started/get-started-with-composition/)
 
-## 作ったものと、3つの技術の役割
+EKSなどのKubernetesクラスタが用意されている前提で、整理するとこうなります。
 
-この記事でいうセルフサービスは、まずKubernetes API経由のものです。ポータル画面は作らず、開発者が1つのYAMLを適用するところを入口にしました。
+| 構成 | 今回やりたいことができるか |
+|---|---|
+| KROだけ | DeploymentやServiceをまとめて作れる。ただし、KRO本体にはS3やIAMを操作する機能がないため、AWSを操作するコントローラーなどを別途足す必要がある |
+| Crossplane v2 + AWS Provider | KROなしで実現できる。独自APIとCompositionを定義し、DeploymentとAWSのリソースをまとめて作る |
+| KRO + Crossplane + AWS Provider | 今回の構成。独自APIとリソース同士のつなぎ込みをKROに、AWS操作をProviderに任せる |
+
+KROが扱うのはKubernetesリソースです。例えばKROが `Bucket` というカスタムリソースを作っても、それだけでAWSにS3バケットができるわけではありません。その `Bucket` を見てAWS APIを呼ぶ担当が必要です。今回はCrossplaneのAWS Providerを使いました。KROの公式例では、この担当にACKを使っています。[KROの仕組みと例](https://kro.run/docs/overview/)
+
+一方、Crossplane v2のCompositionは、AWSのリソースだけでなくDeploymentやServiceも扱えます。だから「KROがアプリ、Crossplaneがインフラ。両方そろって初めてできる」という説明だと、Crossplane側のできることを狭く捉えすぎてしまいます。[Crossplane v2の変更点](https://docs.crossplane.io/v2.4/whats-new/)
+
+今回両方を使ったのは、**KROで使いやすいAPIを作り、AWS操作をCrossplaneのProviderに任せる分担を試すため**です。両方必要だから採用した、という話ではありません。CrossplaneのCompositionは使っていません。
+
+なお、この記事ではCrossplane単独版を実装して比較したわけではありません。単独版にするなら、KROの定義をCrossplaneのAPI定義・Compositionへ作り替え、Readyや削除時の動きも確認し直す必要があります。今の実装からKROだけをアンインストールすれば動く、という意味ではないです。
+
+## 今回は、誰に何を任せたか
+
+今回の入口は `StorageApp` というカスタムリソースです。開発者がこれを1つ作ると、KROが必要なKubernetesリソースを作ります。そのうちAWS向けのものを、ProviderがAWSへ反映します。
 
 ![構成図：開発者のStorageAppをKROがKubernetesリソースとMRへ展開し、CrossplaneのAWS ProviderがAWSリソースを管理する](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/diagrams/01-architecture.png)
 
-*図1：リソースを作る経路と、アプリがS3を読み書きする経路を分けた構成図。Provider自身の認証もPod Identityを使う。図は責務の概略で、RGDの依存グラフをそのまま描いたものではない。*
+*図1：今回の分担。緑の矢印は、起動したアプリがS3を読み書きする経路です。*
 
-| 部分 | 今回持たせた責務 |
+| 担当 | 今回やってもらうこと |
 |---|---|
-| KRO | 独自APIのスキーマ、リソース間の参照・依存関係、Ready条件 |
-| CrossplaneとAWS Provider | Managed Resource（MR）を通じたAWS APIの操作と継続的な同期 |
-| EKS | コントローラーとアプリの実行基盤、Pod Identityによる認証 |
-| eksctl / CloudFormation | EKS本体、Provider用IAM、権限境界などの事前準備 |
+| KRO | StorageAppのAPIを作り、必要なリソースと依存関係、Readyの条件を定義する |
+| Crossplane + AWS Provider | S3、IAM、Pod Identity AssociationをAWS上に作り、状態を同期する |
+| EKS | コントローラーとアプリを動かす。Pod IdentityでAWSの認証情報を渡す |
+| eksctl / CloudFormation | EKS本体やProvider用のIAMなどを先に用意する |
 
-KROには `ResourceGraphDefinition`（RGD）を登録します。RGDには、公開するAPIの形と、そこから作るリソースのテンプレートを書きます。今回はKROがAWS Providerのnamespaced MRを直接生成し、**CrossplaneのCompositionは使っていません**。
+EKS本体は、StorageAppを作る前に準備します。そのEKS上で動くKROやProviderを使って、起動前の自分自身を作ることはできないためです。今回セルフサービス化したのは、**用意済みのEKSに載せるアプリと、そのアプリ用のAWSリソース**です。
 
-Crossplane v2では、CompositionからDeploymentやServiceを含むKubernetesリソースも合成できます。そのため、同様のAPIをCrossplane側にまとめる構成も比較対象になります。今回は「KROにAPIと依存関係を持たせ、AWS操作をProviderに任せる」という分担を試しました。[Crossplane v2の変更点](https://docs.crossplane.io/v2.4/whats-new/) に、この合成機能とnamespaced MRの説明があります。
+## アプリはどうデプロイした？
 
-EKS本体とProviderの認証は先に用意します。管理対象のEKSができるまで、そのEKS上のコントローラーを動かせないためです。今回のStorageAppがセルフサービス化する範囲は、用意済みのEKS上に載せるアプリと、そのアプリ用AWSリソースです。
+今回はターミナルからコマンドで実行しました。ポータル画面やGitOpsによるデプロイは作っていません。
 
-## バージョンはAPIの形とセットで確認する
+EKSとコントローラーを準備した後、次のスクリプトを使います。
 
-主要なバージョンは固定し、AWSが決めるパッチやアドオンの実際の値も記録しました。
+```bash
+# アプリのイメージをビルドし、ECRへpushする
+bash scripts/04-image.sh
 
-| コンポーネント | 今回使ったバージョン |
-|---|---|
-| KRO | 0.9.4 |
-| Crossplane | 2.4.2 |
-| AWS Provider（family / S3 / IAM / EKS） | 2.8.1 |
-| EKS Kubernetes | v1.36.4-eks-cfb47f5（指定は1.36） |
-| EKS platform | eks.14 |
-| EKS Pod Identity Agent | v1.3.10-eksbuild.3 |
-| eksctl / Helm | 0.230.0 / 3.22.0 |
-| Go | 1.27.1 |
+# StorageAppを登録し、Readyになるまで待つ
+bash scripts/05-demo.sh
+```
 
-特に、この記事のMRは `s3.aws.m.upbound.io/v1beta1` のように、APIグループに **`.m.` が入るnamespaced版**です。今回固定したCRDでは `providerConfigRef` に `name` と `kind` を指定し、削除時の保持は `managementPolicies` で表します。過去のサンプルを使うときは、そのまま混ぜず、利用するProvider版のCRDと照合します。
+Makefileには、同じ処理を `make image` と `make demo` でも呼べるようにしています。
 
-Helmチャート、検証用CRD、コンテナイメージもハッシュまたはdigestを保存しました。一方、EKSアドオンは初回作成時に対応版を解決して保存する方式です。「次に実行してもAWS側まで完全に同じ版になる」という固定ではありません。全アドオンとイメージの実測値は [versions.json](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/evidence/versions.json) にあります。
-
-![実AWSコンソール：新規EKSがActive、Kubernetes 1.36](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/screenshots/01-eks-active.jpg)
-
-*スクショ1：実AWSコンソール。Kubernetes 1.36の新規EKSがActiveになった状態。アカウント情報が出る領域は撮影時に除いている。*
-
-検証環境は `m7i.xlarge` のワーカーノード1台です。NAT Gatewayと外部Load Balancerは作らず、アプリにはClusterIPとlocalhostのport-forwardで接続しました。これは短時間の検証用の構成です。
-
-## 開発者に渡すのはStorageAppだけ
-
-開発者側の入力は、ストレージのID、イメージ、レプリカ数の3つにしました。
+アプリ側の入力は、ストレージのID、イメージ、レプリカ数の3つです。YAMLで書くとこの形になります。
 
 ```yaml
 apiVersion: platform.example.com/v1alpha1
@@ -82,30 +81,41 @@ spec:
   replicas: 1
 ```
 
-`image` は説明用のプレースホルダーです。実行スクリプトは、ビルドしてECRにpushしたイメージのdigestを使います。
+ここでの `image` は説明用の値です。スクリプトは実際にECRへpushしたイメージのdigestを読み、この内容のJSONを生成します。最後にやっているのは、この `kubectl apply` です。
 
-リージョンやIAM権限、バケットの公開設定はプラットフォーム側で決めます。`storageId` は作成後に変更できず、レプリカ数は1〜3に制限しました。実EKSでも、`storageId` の変更と `replicas: 4` はAPIサーバーに拒否され、開発者の権限で1→2→1のスケールができることを確認しています。
+```bash
+kubectl apply \
+  --as=system:serviceaccount:idp-lab:developer-demo \
+  -f .local/demo.json
+```
 
-開発者のServiceAccountにはStorageAppの操作を許可し、IAMのMR作成やプラットフォーム設定のConfigMap変更は許可しません。この拒否も実EKSのimpersonationで確認しました。
+`--as` は、開発者用ServiceAccountの権限で操作できるかを試すための指定です。今回の検証では、管理者の接続からこのServiceAccountとして操作しています。
 
-ただし、今回の共有Namespace内では他のStorageAppも編集でき、任意のアプリイメージを指定できます。また、同じ `storageId` を同時に使うことを防ぐ所有権・一意性の制御は実装していません。ここは後述する自社IDPへの宿題です。
+コマンドが登録するのはStorageAppです。その後、KROがDeploymentなどを作り、Kubernetesの標準コントローラーがPodを起動します。S3やIAMの作成は、KROが作ったMRを見たAWS Providerが進めます。MRはManaged Resourceの略で、この例では「AWSリソースをKubernetesのAPIで管理するためのリソース」です。
 
-### RGDで依存関係とReadyを定義する
+開発者用ServiceAccountではStorageAppを作成・更新できますが、IAMのMRを作ったり、プラットフォーム設定のConfigMapを書き換えたりはできません。この拒否も実EKSで確認しました。
 
-実装したMRは次の6種類です。
+レプリカ数は1〜3、`storageId` は作成後に変更できない設定です。こちらも、禁止した変更が拒否されることと、1→2→1へのスケールが通ることを確認しています。
 
-| MR | AWS側で管理するもの |
+GitHub Actionsで動かしているのは、lint、テスト、イメージのビルド確認、kind上の検証です。今回のEKSへのデプロイは、手元のコマンドから行いました。[デプロイスクリプト](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/scripts/05-demo.sh)
+
+## 作成順とReadyは、どこに書く？
+
+KRO側には `ResourceGraphDefinition`、略してRGDを登録します。「StorageAppに何を入力できるか」と「そこから何を作るか」をまとめた定義です。
+
+今回は次の6種類のMRを作り、Deployment、Service、ServiceAccountと組み合わせました。
+
+| MR | 管理するもの |
 |---|---|
 | Bucket | S3バケット |
-| BucketPublicAccessBlock | 公開アクセスのブロック |
-| BucketServerSideEncryptionConfiguration | デフォルト暗号化 |
-| Role | アプリ用IAMロール |
-| RolePolicy | アプリのS3アクセス権限 |
+| BucketPublicAccessBlock | S3の公開アクセスをブロックする設定 |
+| BucketServerSideEncryptionConfiguration | S3のデフォルト暗号化 |
+| Role / RolePolicy | アプリ用IAMロールとS3アクセス権限 |
 | PodIdentityAssociation | EKSのServiceAccountとIAMロールの関連付け |
 
-KROのテンプレートでは、他のリソースの値をCEL式で参照します。例えばAssociationがRoleのARNを参照し、DeploymentがAssociationのIDを参照します。アプリ用ポリシーの準備も待つよう、AssociationのannotationにRolePolicyへの参照を置きました。
+RGDでは、例えばAssociationがRoleのARNを参照し、DeploymentがAssociationのIDを参照します。この参照から、KROが依存関係を組み立てます。アプリ用ポリシーの準備も待つよう、AssociationのannotationにはRolePolicyへの参照を置きました。
 
-MRについては `Ready=True` と `Synced=True` の両方を待ちます。Deploymentについては、更新対象の世代が観測され、更新済み・利用可能レプリカがともに要求数と一致することを条件にしました。
+MRは `Ready=True` と `Synced=True` の両方を待ちます。Deploymentは、要求した数のレプリカが更新され、利用可能になるまで待つようにしました。
 
 ```yaml
 # platform/storage-app.yaml の抜粋
@@ -116,71 +126,71 @@ MRについては `Ready=True` と `Synced=True` の両方を待ちます。Depl
     - ${deployment.status.?availableReplicas.orValue(0) == deployment.spec.replicas}
 ```
 
-ここで、Deploymentの利用可能性を何で判断するかが、次のreadiness probeにつながります。
+では、Podが「利用可能か」は何で決めるのか。ここはアプリのreadiness probeで、S3へ実際にアクセスして確かめます。
 
-## 「S3がある」から「アプリで読み書きできる」まで確認する
+## まず、アプリからS3へ保存して読んでみる
 
-検証用アプリは、Goで作った小さなHTTP APIです。
+アプリはGoで作った小さなHTTP APIです。大きな機能は付けず、ファイルの保存と取得だけにしました。
 
-| API | 振る舞い |
+| API | やること |
 |---|---|
-| `GET /healthz` | プロセスの生存確認。AWSアクセスはしない |
-| `GET /readyz` | 同じバケットの一時オブジェクトをPut / Get / Deleteし、内容を照合する |
-| `PUT /objects/{key}` | 最大1 MiBをS3の `uploads/` 配下に保存する |
-| `GET /objects/{key}` | 保存したファイルを取得する。存在しなければ404 |
+| `GET /healthz` | プロセスが生きているかを返す。AWSにはアクセスしない |
+| `GET /readyz` | S3の一時オブジェクトをPut / Get / Deleteし、内容を比べる |
+| `PUT /objects/{key}` | 最大1 MiBのファイルを `uploads/` 配下に保存する |
+| `GET /objects/{key}` | ファイルを取得する。なければ404を返す |
 
-生存確認とreadinessを分け、S3の問題だけでプロセスを再起動する構成にはしていません。readinessは10秒周期を設定し、専用の `_health/` キーを使います。アプリの削除権限も、このヘルスチェック用プレフィックスだけに限定しました。
+readinessは10秒周期を設定し、専用の `_health/` キーを使います。livenessはAWSに依存させず、S3の調子が悪いだけでプロセスを再起動しないようにしました。
 
-通常の動作確認では、HTTPでバイナリをPUTし、GETしたデータと元ファイルのSHA256を比較しました。バケットの存在やHTTPのステータスコードだけでなく、保存・取得したバイト列まで一致しました。
+通常の動作確認では、HTTPでバイナリをPUTし、GETしたファイルと元ファイルのSHA256を比べています。「200が返った」だけでなく、読み戻した中身まで一致しました。
 
 ![実CLI出力：StorageAppと6種類のMRがReady、HTTPで往復したファイルのSHA256が一致](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/screenshots/02-ready.jpg)
 
-*スクショ2：保存した実CLI出力をHTMLにして撮影したもの。AWSコンソールではない。StorageApp、Deployment、6種類のMRの状態と、バイナリ往復の結果をまとめている。以降のCLI画面も同じ方式で、アカウントIDだけを置換している。*
+*スクショ1：StorageAppと6種類のMRがReadyになり、HTTPで往復したデータも一致しました。保存した実CLI出力をHTMLにして撮影した画面です。AWSコンソールではありません。以下の障害・復旧・保持・再接続のCLI画面も同じ方式で、アカウントIDを置換しています。*
 
-Pod Identityで取得する短期認証情報を使い、アプリにもProviderにも長期アクセスキーを持たせていません。アプリではIMDSからの認証情報取得も無効にしています。
+AWSの認証にはPod Identityを使っています。アプリもProviderも短期認証情報で動き、長期アクセスキーは持たせていません。アプリではIMDSからの認証情報取得も無効にしています。
 
-## 権限を壊すと、どのReadyが変わるのか
+## 権限をわざと不足させたら、Readyはどうなる？
 
-次に、アプリ用IAMロールへ専用のインラインポリシーを追加し、`_health/*` に対する `s3:PutObject` を一時的にDenyしました。
+次は、動いているアプリのIAMロールに専用のDenyポリシーを足します。拒否したのは、ヘルスチェック用の `_health/*` に対する `s3:PutObject` です。
 
-このDenyは、Crossplaneが管理するRolePolicyとは別のポリシーです。バケットやAssociationを壊さず、アプリのreadinessだけを失敗させる実験にしています。
+バケットやAssociationはそのままにして、S3へのヘルスチェックを失敗させます。このDenyは、Crossplaneが管理するRolePolicyとは別のポリシーとして追加しました。
 
 ![障害伝播の図：MRはReadyのまま、S3の権限不足がreadiness、Deployment、StorageAppへ伝わる](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/diagrams/02-readiness.png)
 
-*図2：今回観測した状態の伝播。S3 APIの403をアプリが検知し、Pod・Deploymentを経由してStorageAppのReady=Falseにつながる。即時に全層が変わるわけではない。*
+*図2：S3の403がアプリのreadinessに伝わり、Deployment、StorageAppの状態も変わります。*
 
-実際の結果は次のとおりでした。
+結果はこうでした。
 
-| 観測したもの | Denyの前 | Denyの反映後 |
+| 確認したもの | Denyの前 | Denyが効いた後 |
 |---|---|---|
 | 6種類のMRのReady / Synced | すべてTrue | **すべてTrueのまま** |
-| アプリのS3ヘルスチェック | 成功 | PutObjectが403 / AccessDenied |
+| S3へのヘルスチェック | 成功 | PutObjectが403 / AccessDenied |
 | Deployment | 1/1 | 0/1 |
 | StorageApp | Ready=True | Ready=False、STATE=IN_PROGRESS |
 
 ![実CLI出力：MRはReady=Trueのまま、StorageAppはReady=False、S3 PutObjectは403](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/screenshots/03-failure.jpg)
 
-*スクショ3：この記事の中心となる観測。MRの状態と、アプリがチェックした実アクセスの結果は一致するとは限らない。*
+*スクショ2：AWSのMRはすべてReadyなのに、アプリ側はReady=Falseになっています。*
 
-MRのReadyとSyncedは、そのリソースについてProviderが観測した状態です。今回、そこからアプリ用認証情報によるS3操作の成功までは分かりませんでした。Deploymentを経由して実アクセスのreadinessをStorageAppへつなぐことで、開発者が見るAPIにも異常を返せました。
+ここは今回確かめたかったところです。MRがReadyでも、アプリの認証情報でS3を操作できることまでは分かりませんでした。アプリからのチェックをDeploymentの状態につなぐと、StorageAppを見る側にも異常を返せます。
 
-ただし、今回Denyしたのは **`_health/*` だけ**です。この実験は「`uploads/*` の操作も403になった」という証拠ではありません。同じバケット・認証情報でもプレフィックスごとの権限は異なるため、何をもって「使える」とするかは、probeと実際の利用経路を合わせて設計する必要があります。通常系の `uploads/*` は、前節のHTTP Put/Getで別に確認しています。
+今回Denyしたのは **`_health/*` だけ**なので、`uploads/*` も403になった、とは言えません。同じバケットでも、パスごとの権限は別です。実際の利用パスは前のHTTP Put/Getで確認し、ここではreadinessが失敗したときの動きを見ています。
 
-専用Denyを取り除くと、Podを再作成するコマンドを実行せずに、StorageAppはReady=Trueへ戻りました。
+Denyを外すと、Podを作り直すコマンドを実行せずに、StorageAppがReady=Trueへ戻りました。
 
 ![実CLI出力：Denyを除去した後、Deployment 1/1とStorageApp Ready=Trueへ復旧](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/screenshots/04-recovered.jpg)
 
-*スクショ4：権限の復旧後。実験スクリプトはEXIT時にも専用Denyを除去する。*
+*スクショ3：権限を戻した後。Deploymentも1/1へ戻りました。実験スクリプトは、終了時にも専用Denyを外します。*
 
-readinessにはS3リクエストが発生します。また、依存先の障害で全PodがNotReadyになる設計が、そのサービスに合うかは別途考える必要があります。このラボでは、S3が使えない状態を開発者APIへ返すことを優先しました。
+ただ、S3を毎回チェックする分、リクエストは増えます。S3障害で全PodをNotReadyにするのがよいかも、アプリ次第です。自社で使うなら、どこまでをReadyに含めるかは先に決めておきたいところです。
 
-> **追記メモ②：** 自社IDPのReadyにどこまで含めたいか。外部依存の確認を常時probeに入れるか、作成時の疎通試験や別の監視に分けるかについて、今回の感想を足す。
+> **追記メモ②：** 自社ならこのreadinessをどう使うか。常時チェックするか、作成時だけ疎通を試すか、別の監視に分けるかについて感想を足す。
 
-## アプリを消してもデータは残し、再作成したアプリから読む
+## アプリを消したら、S3のデータも消える？
 
-StorageAppの削除では、アプリとIAM、Pod Identity Associationを片付けます。一方、S3バケットとデータ、公開ブロック、暗号化設定は残す方針にしました。
+今回は、アプリとIAM、Pod Identity Associationは片付けつつ、S3のデータは残すことにしました。
 
-S3関連の3種類のMRには、次の設定を使っています。
+S3関連の3種類のMRでは、`managementPolicies` に `Delete` を入れていません。
 
 ```yaml
 spec:
@@ -190,63 +200,63 @@ spec:
     kind: ProviderConfig
 ```
 
-ここでは `Delete` を含めていません。Kubernetes上のMRが削除されても、対応するAWS上のリソースや設定を削除しないための指定です。Bucketだけ保持して保護設定が消えることを避けるため、公開ブロックと暗号化のMRも同じ方針にしています。
+これでKubernetes上のMRが消えても、AWS上のバケットや設定は削除されません。バケットだけでなく、公開ブロックと暗号化の設定も残すようにしています。
 
 ![保持と再接続の図：アプリ削除後にS3を残し、同じstorageIdで再作成したPodから元のデータを読む](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/diagrams/03-retention.png)
 
-*図3：同一アカウント・同一ラボ設定で実施した保持と再接続。S3のMRは一度消え、再作成時に同じ外部バケット名へ接続する。*
+*図3：アプリを消し、同じstorageIdで作り直します。S3は残したものを使います。*
 
-削除後に確認したのは、次の状態です。
-
-- StorageApp、Deployment、6種類のMRがKubernetes上から消えた。
-- S3には元のファイルが残り、SHA256が一致した。
-- S3の公開ブロック4項目がすべて有効で、デフォルト暗号化はAES256だった。
+実際にStorageAppを削除すると、Deploymentも6種類のMRも消えました。それでもS3の元ファイルは残り、SHA256は一致。公開ブロック4項目とAES256のデフォルト暗号化も残っていました。
 
 ![実CLI出力：アプリとMRの削除後も、S3のデータと保護設定が残る](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/screenshots/05-retained.jpg)
 
-*スクショ5：削除完了後、再作成前の記録。空のリソース一覧と、S3側の保護設定・データ照合を一緒に残した。*
+*スクショ4：削除が終わり、まだアプリを作り直していない時点の記録です。*
 
-続いて同じ `storageId: demo` でStorageAppを作り直しました。このラボでは、ラボ固有のprefixと `storageId` からバケット名を決めます。同じ設定なら、保持したバケットと同じ外部名になります。
+続いて、同じ `storageId: demo` でStorageAppを作り直します。このラボでは、ラボ固有のprefixとstorageIdからバケット名を決めているので、同じ設定なら元のバケットへ接続します。
 
-ここで元ファイルは再アップロードせず、**新しいPodのHTTP APIからGET**しました。元ファイル、アプリ削除後にS3から取得したファイル、再接続したアプリから取得したファイルのSHA256が一致しました。新PodのrestartCountは0です。
+ファイルは再アップロードせず、**新しいPodのHTTP APIから元ファイルをGET**しました。次の3つでSHA256が一致しています。
+
+- 最初に保存した元ファイル
+- アプリ削除後にS3から取得したファイル
+- 作り直したアプリからHTTP GETしたファイル
 
 ![実CLI出力：再作成したアプリから元のファイルを取得し、3つのSHA256が一致](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/screenshots/06-reconnected.jpg)
 
-*スクショ6：再接続後。AWS CLIで残存を確認するだけでなく、新Podの認証情報とアプリ経由の読み取りも確認した。*
+*スクショ5：新Podから元データを読めました。このPodのrestartCountは0でした。*
 
-これは、同一ラボ設定での再接続試験です。任意の既存バケットのimportや、管理クラスタを失った後の別クラスタへの復旧を確認したものではありません。また、削除を防いで残すことと、誤更新や障害に備えるバックアップは別に設計する必要があります。
+今回確認したのは、同一アカウント・同一ラボ設定での再接続です。別クラスタへの復旧や、任意の既存バケットの取り込みは試していません。保持したデータの誤更新まで防げるわけではないので、バックアップも別に考える必要があります。
 
-## 実AWSで見つかった3つの注意点
+## 実AWSに載せたら引っかかったところ
 
-事前のkind検証では、実KROと実Provider CRDを使い、型、依存待ち、入力制約、更新、削除を確認しました。ただし、AWS側のstatusは模擬しています。AWSに対する権限評価や反映タイミングは、実EKSで確認する必要がありました。
+事前にはkind上でも確認しています。実際のKROとProviderのCRDを使いますが、AWS側のstatusは模擬するテストです。型や依存関係は確認できても、AWSの権限や反映タイミングは実環境で確かめる必要がありました。
 
-### 1. IAM Roleの初回ObserveがGetRoleで拒否された
+### IAMロールを作る前のGetRoleが403になった
 
-IAM Providerの権限をworkloadsパスのロールに限定したところ、まだ存在しないロールを調べる最初のGetRoleで403になりました。
+IAM Providerの権限をworkloadsパスに絞っていたところ、まだ存在しないロールを調べるGetRoleで止まりました。
 
-今回のProviderでは、初回Observeのために、ラボ名のprefixで絞ったrootパスのロールARNにも `iam:GetRole` を追加することで、作成へ進みました。IAMのGetRole APIはRoleNameを入力とするAPIです。[GetRoleのAPI仕様](https://docs.aws.amazon.com/IAM/latest/APIReference/API_GetRole.html) と [実際のエラー](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/evidence/iam-observe-error.txt) を併せて確認しました。
+今回はラボ名のprefixで絞ったrootパスのARNにも、`iam:GetRole` だけを追加すると先に進みました。ロールの作成・更新・削除はworkloadsパスに限定したままです。作成時に指定のpermissions boundaryを付ける条件も残しています。
 
-追加したのは、この範囲の読み取りだけです。ロール作成・更新・削除はworkloadsパスに限定し、作成時には指定のpermissions boundaryを必須にしています。ただし、同じラボ名のProviderロールのメタデータもGetRoleで読める範囲に入る点は、権限設計上の変更として記録しました。
+GetRoleはRoleNameを入力に取るAPIです。[API仕様](https://docs.aws.amazon.com/IAM/latest/APIReference/API_GetRole.html) と [実際のエラー](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/evidence/iam-observe-error.txt) を残しました。追加した読み取り権限では、同じラボ名のProviderロールのメタデータも読めるようになる点は、変更として記録しています。
 
-### 2. Association作成にも対象ロールのGetRoleが必要だった
+### Associationの作成にもGetRoleが必要だった
 
-EKS ProviderにPassRoleを許可していても、Association作成時に次のエラーになりました。
+こちらはEKS Provider側です。PassRoleを許可していても、Associationの作成で次のエラーになりました。
 
 ```text
 Caller does not have permission to perform iam:GetRole
 ```
 
-対象workloadsパスへの `iam:GetRole` を別Statementで追加して解消しました。PassRoleに付けた `iam:PassedToService=pods.eks.amazonaws.com` の条件を、GetRoleにもまとめて付けないようにしています。
+対象workloadsパスの `iam:GetRole` を、PassRoleとは別のStatementに追加して解消しました。PassRole用の `iam:PassedToService=pods.eks.amazonaws.com` という条件は、GetRoleへまとめて付けないようにしています。
 
-AWSの [Pod Identityを管理する実装例](https://aws.amazon.com/blogs/containers/how-to-manage-eks-pod-identities-at-scale-using-argo-cd-and-aws-ack/) にも、GetRoleとPassRoleを分けたポリシー例があります。こちらの [エラー記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/evidence/association-error.txt) も残しました。
+[AWSの実装例](https://aws.amazon.com/blogs/containers/how-to-manage-eks-pod-identities-at-scale-using-argo-cd-and-aws-ack/) にも、GetRoleとPassRoleを分けた例があります。[今回のエラー](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/evidence/association-error.txt) はこちらです。
 
-### 3. AssociationのReady直後に作ったPodで、認証設定の注入が間に合わなかった
+### AssociationがReadyでも、直後のPodに認証設定が入っていなかった
 
-AssociationがReadyになった直後のPodでは、Pod Identity用の `AWS_CONTAINER_*` 環境変数と投影トークンが注入されておらず、認証情報を取得できませんでした。同じPodテンプレートでPodを作り直すと注入され、Readyになりました。
+Association作成直後のPodには、Pod Identity用の `AWS_CONTAINER_*` 環境変数と投影トークンが注入されていませんでした。同じテンプレートでPodを作り直すと注入され、Readyになりました。
 
-AWSはAssociation作成APIについて、変更の反映が結果整合的であることを説明しています。今回の観測はその説明と整合しますが、内部キャッシュの原因まで特定したわけではありません。[CreatePodIdentityAssociationの仕様](https://docs.aws.amazon.com/eks/latest/APIReference/API_CreatePodIdentityAssociation.html)
+AWSはAssociationの反映が結果整合的であると説明しています。今回の動きはその説明と合いますが、AWS内部のどこで遅れていたかまでは特定していません。[Association作成APIの説明](https://docs.aws.amazon.com/eks/latest/APIReference/API_CreatePodIdentityAssociation.html)
 
-最終実装では、このIPv4ラボのDeploymentに、AWSが公開するPod Identityの環境変数と専用トークン投影を明示しました。
+このラボでは、AWSが公開している認証用の環境変数とトークン投影をDeploymentに明示しました。
 
 ```yaml
 # アプリコンテナのenvの抜粋
@@ -256,83 +266,107 @@ AWSはAssociation作成APIについて、変更の反映が結果整合的であ
   value: /var/run/secrets/pods.eks.amazonaws.com/serviceaccount/eks-pod-identity-token
 ```
 
-トークンは `audience: pods.eks.amazonaws.com`、有効期間86400秒のServiceAccount tokenを専用volumeに投影し、読み取り専用でmountします。Kubernetes API用トークンの自動mountは無効のままです。形式は [AWSのPod Identity動作説明](https://docs.aws.amazon.com/eks/latest/userguide/pod-id-how-it-works.html) に合わせました。
+トークンは `audience: pods.eks.amazonaws.com`、有効期間86400秒とし、読み取り専用でmountします。Kubernetes API用トークンの自動mountは無効のままです。[AWSのPod Identityの説明](https://docs.aws.amazon.com/eks/latest/userguide/pod-id-how-it-works.html) に形式を合わせています。
 
-認証情報の取得に必要な設定を最初からPodに用意し、Associationが有効になるまでSDKとreadinessの再試行で待てるようにしています。これで結果整合性がなくなるわけではありません。修正後の削除・再作成試験では、手動のPod再作成なしで元データを取得できました。
+これで認証情報を取得するための設定は最初からPodに入り、Associationの反映をSDKとreadinessの再試行で待てるようにしました。修正後の再作成では、手動でPodを作り直さずに元データを読めました。
 
-この対応はIPv4構成向けで、Pod Identity Agentの公開仕様に依存します。採用する構成やAgentの版を変えるときは、テンプレートの見直しと再作成試験もセットにします。
+この設定は今回のIPv4構成向けです。Agentや構成を変えるときには、このテンプレートも確認し直します。
 
-## 試す場合の入口と後片付け
+## 使ったバージョンと、試すときの入口
 
-リポジトリには、一連の操作をMakeターゲットとして用意しました。AWS CLIのSSOプロファイル、期待するアカウントID、リージョン、新しい `LAB_ID`、管理者のIPv4 /32を `.env` に設定してから実行します。必要なツールと準備は [README](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/README.md#前提と準備) を参照してください。
+| コンポーネント | 今回使った版 |
+|---|---|
+| KRO | 0.9.4 |
+| Crossplane | 2.4.2 |
+| AWS Provider（family / S3 / IAM / EKS） | 2.8.1 |
+| EKS Kubernetes | v1.36.4-eks-cfb47f5（指定は1.36） |
+| EKS platform | eks.14 |
+| EKS Pod Identity Agent | v1.3.10-eksbuild.3 |
+| eksctl / Helm | 0.230.0 / 3.22.0 |
+| Go | 1.27.1 |
 
-この記事のコード・証跡リンクは検証済み実装を含むコミットに固定しています。取得して試す場合も、同じ版から始められます。
+![実AWSコンソール：新規EKSがActive、Kubernetes 1.36](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/screenshots/01-eks-active.jpg)
+
+*スクショ6：実AWSコンソール。Kubernetes 1.36の新規EKSがActiveになったところです。アカウント情報が出る部分は撮影範囲から外しています。*
+
+ここは少しバージョンに注意が要ります。今回のMRは `s3.aws.m.upbound.io/v1beta1` のように **`.m.` が入るnamespaced版**です。使ったCRDでは、`providerConfigRef` にnameとkindを指定し、削除時の保持には `managementPolicies` を使います。古い例を混ぜる前に、その版のCRDを確認します。
+
+チャートや検証用CRD、コンテナイメージはハッシュやdigestも保存しました。EKSアドオンは初回実行時に対応版を解決するため、次の実行で全く同じ版になるとは限りません。[実際のバージョン一覧](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/evidence/versions.json) はこちらです。
+
+環境は `m7i.xlarge` 1台、NAT Gatewayと外部Load Balancerなしです。HTTPのユーザー認証は付けず、アプリにはClusterIPとlocalhostのport-forwardで接続しました。短時間の検証用の構成です。
+
+試す場合は、次のコミットから始められます。記事の画像やコードへのリンクも、この版に固定しています。
 
 ```bash
 git clone https://github.com/suzuki0430/kro-crossplane-eks-idp-lab.git
 cd kro-crossplane-eks-idp-lab
 git checkout 49a3bae7e3c6198f3a15caefa5adbd2f41d5b658
-# 続いてREADMEの「前提と準備」を実施する
 ```
 
+[READMEの準備手順](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/README.md#前提と準備) に沿って、SSOプロファイル、期待するアカウントID、リージョン、新しいLAB_ID、管理者のIPv4 /32を `.env` に設定します。その後の流れは次のとおりです。
+
 ```bash
-# ローカル検証
+# ローカルで確認
 make check test
 make graph
 
-# ここからAWSリソースを作成する
+# EKSと、アプリを受け付ける仕組みを用意
 make cluster
 make bootstrap
 make platform
+
+# イメージをpushし、StorageAppを登録
 make image
 make demo
 
-# 作成・障害・保持と再接続を検証する
+# 読み書き・権限・データ保持を試す
 make verify
 make verify-iam
 make failure
 make retention
 
-# 最後にEKS等を削除する。S3は保持する
+# EKSなどを削除。S3は残す
 make cleanup
 ```
 
-クラスタの作成から片付けまで、EKS、EC2、EBS、public IPv4などの料金が発生します。今回のEKS作成は約14分33秒、cleanupは約12分52秒でした。いずれも1回の実行結果です。初回アプリ作成には調査・修正も含まれるため、通常のプロビジョニング時間としては紹介しません。
+EKS、EC2、EBS、public IPv4などの料金は発生します。今回、EKS作成は約14分33秒、cleanupは約12分52秒でした。1回の実行結果なので、所要時間の目安として見てください。初回アプリ作成には原因調査も含まれていたため、通常のデプロイ時間としては載せていません。
 
-cleanupは、先にStorageAppとMRの削除を完了させてから、Provider用の認証基盤とEKSを削除します。MRのfinalizer処理中に、必要なコントローラーやIAMを先に消さない順序です。
+## 最後にEKSも片付ける
 
-検証後、EKS、VPC、ネットワークインターフェース、EBS、関連IAM、ECRの削除を確認しました。記録していたEC2もterminatedです。残したのはS3バケットと `uploads/probe.bin` の39バイトの検証データで、EKS削除後に取得したデータも元のSHA256と一致しました。
+cleanupでは、先にStorageAppとMRを削除し終えてから、Provider用のIAMやEKSを消します。削除処理の途中で、その処理をするコントローラーや権限を先に消さないためです。
+
+検証後はEKS、VPC、ネットワークインターフェース、EBS、関連IAM、ECRを削除しました。EC2もterminatedになっています。S3には39バイトの `uploads/probe.bin` を残し、EKS削除後に読み出したデータも元と一致しました。
 
 ![実AWSコンソール：S3に残るuploads/probe.bin](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/screenshots/07-s3-object-retained.jpg)
 
-*スクショ7：実S3コンソール。保持した39バイトの検証オブジェクト。*
+*スクショ7：実S3コンソール。残しておいた検証ファイルです。*
 
 ![実AWSコンソール：後片付け後の東京リージョンのEKS一覧は0件](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/screenshots/08-eks-deleted.jpg)
 
-*スクショ8：実EKSコンソール。検証後のクラスタ一覧は0件。関連リソースの削除は [AWS APIの最終確認](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/evidence/cleanup.txt) でも照合した。保持S3のストレージ・リクエスト等は引き続き料金の対象になる。*
+*スクショ8：実EKSコンソール。後片付け後のクラスタ一覧は0件です。関連リソースは [AWS APIの出力](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/evidence/cleanup.txt) でも照合しました。保持したS3には、ストレージ・リクエスト等の料金が引き続きかかります。*
 
-## 自社IDPに持ち帰って考えたいこと
+## 自社で使うなら、次に何を決める？
 
-今回のラボでは、1つのAPIからAWSリソースとアプリを作り、実アクセスの異常を状態へ返し、データを残して再接続するところまで確認できました。
+今回、StorageAppを1つ登録してアプリとS3を用意し、権限不足をReadyへ返し、削除後もデータを残して再接続するところまで試せました。
 
-これを自社IDPの機能として提供するなら、次は次の契約を決めたいところです。
+ただ、これをそのまま社内に配ればIDPが完成、とはいきません。例えば今回の共有Namespaceでは他のStorageAppも編集でき、任意のイメージを指定できます。同じstorageIdを同時に使うことを止める仕組みもありません。
 
-| 論点 | 決めること |
-|---|---|
-| APIとデータの所有権 | チーム別Namespace、storageIdの一意性、誰が保持データに再接続できるか |
-| 実行できるもの | イメージの許可範囲、Pod Identityを使える主体、admissionによる制約 |
-| Readyの意味 | どの操作を試すか、probe頻度、依存先障害の見せ方、利用者へのエラーメッセージ |
-| データの寿命 | 保持期限、完全削除の手順、バックアップ、管理クラスタ喪失後の復旧 |
-| 変更の進め方 | RGD・Provider・アプリの互換性試験、段階的更新、ロールバック |
+自社で使う前に決めたいのは、こんなところです。
 
-IAMシミュレーターでは、境界なしのロール作成や境界除去などの拒否も確認しました。ただし、これはポリシー評価であり、別Namespaceや別ServiceAccountからの実アクセス拒否をすべて試したものではありません。今回の共有Namespaceのラボで、敵対的な利用者間の分離まで証明したとは扱いません。確認範囲は [認証・権限のレビュー](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/security-review.md) に分けて記録しています。
+- 誰がどのStorageAppを編集できるか。残したデータへ再接続できるのは誰か。
+- どのイメージを動かしてよいか。アプリにどこまでAWS権限を渡すか。
+- Readyで何を約束するか。使えないとき、開発者には何を見せるか。
+- データをいつまで残すか。完全削除やバックアップ、別クラスタへの復旧をどうするか。
+- KROとCrossplaneを併用する価値があるか。Crossplaneにまとめた場合と、定義の書きやすさや運用の手間をどう比べるか。
 
-> **追記メモ③：** KROとCrossplaneを併用して分かりやすかった点・複雑になった点、自社なら最初にどの契約を固めたいかを書く。Crossplane単独のComposition構成と比べてみたい点も、ここに足せる。
+IAMシミュレーターでは、境界なしのロール作成や境界除去などが拒否されることも確認しました。ただ、別Namespaceや別ServiceAccountからのアクセスを、実AWS APIですべて試したわけではありません。確認したことと、まだ確認していないことは [権限のレビュー](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/security-review.md) に分けてあります。
 
-## 実装・検証資料
+> **追記メモ③：** 両方触って分かりやすかった点・複雑だった点、自社ならどこから始めたいかを書く。Crossplane単独版と比較するなら、何を見たいかもここへ。
+
+## コードと検証記録
 
 - [リポジトリと実行手順](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/README.md)
-- [StorageAppのRGD](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/platform/storage-app.yaml)
-- [実AWSの検証結果・バージョン・所要時間](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/verification.md)
-- [スクショの出典とキャプション](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/screenshots/README.md)
-- [IAM・認証設計と試験範囲](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/security-review.md)
+- [StorageAppの定義（RGD）](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/platform/storage-app.yaml)
+- [検証結果・バージョン・所要時間](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/verification.md)
+- [スクショの出典](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/screenshots/README.md)
+- [権限の設定と試験範囲](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/security-review.md)
