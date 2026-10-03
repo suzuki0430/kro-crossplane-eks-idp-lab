@@ -5,8 +5,11 @@ KRO + Crossplane + EKSで「S3付きアプリ」をセルフサービス化す�
 Ready判定、権限不足からの復旧、アプリ削除後のデータ保持と再接続まで検証します。
 
 **実行済みの検証結果は [docs/verification.md](docs/verification.md) に記録します。**
-現在は実装段階です。実AWSでのアプリ動作確認は延期しており、CIも手動実行のみです。
-PR取り込み後、GitHub Actionsの `CI` → `Run workflow` から検証を再開できます。
+2026-10-02に新規EKS上で、実S3の読み書き・権限不足からの復旧・削除後の保持と再接続を検証しました。
+[記事用スクリーンショット](docs/screenshots/) と [実環境で見つけた注意点](docs/verification.md#実awsで見つかった3点と修正) も残しています。
+[Qiita記事の下書き](docs/qiita-draft.md) はスクショ8枚・図3枚入りで、感想の追記欄があります。
+[編集・公開用メモ](docs/article-notes.md) と [編集可能な図の元データ](docs/diagrams/) も用意しています。
+CIはPRとmainへの取り込み時に実行し、`Run workflow` からの手動実行にも対応します。
 
 ```mermaid
 flowchart LR
@@ -21,6 +24,8 @@ flowchart LR
 
 CrossplaneのCompositionは使わず、KROがnamespaced Managed Resourceを直接生成します。
 Crossplane v2単独でもKubernetesリソースを合成できるため、これは学習のための設計上の選択です。
+KRO本体はAWS APIを操作しません。S3やIAMの作成には、今回のAWS Providerのような実行担当が別に必要です。
+KROを使わずCrossplane側にまとめる場合は、Provider等を用意し、API定義・Compositionへ作り替えます。
 EKSとProviderの認証はeksctl / CloudFormationで先に用意し、起動依存を避けます。
 
 ## バージョン
@@ -96,12 +101,15 @@ make platform       # KRO、Crossplane、6種類のMR、RBAC
 make image          # ECRへpushし、digestを保存
 make demo           # 開発者ServiceAccountとしてStorageAppを作成
 make verify         # HTTPバイナリ往復・404・RBAC
+make verify-iam     # IAMシミュレーターで権限境界を評価
 make failure        # 一時的なDeny→Ready=False→権限復旧
-make retention      # アプリ削除→S3保持→再接続
+make retention      # アプリ削除→S3保持→再接続→元データをHTTP GET
 make cleanup        # EKS・VPC・ECR・IAMを削除。S3は保持
 ```
 
 `make cluster` は新規作成用です。既存EKSのアップグレードには使いません。
+今回のアプリデプロイはCLIから実行しました。`make demo` の実体は `scripts/05-demo.sh` で、
+開発者ServiceAccountとしてStorageAppを `kubectl apply` します。GitHub Actionsは検証用で、EKSへのデプロイは行いません。
 作成途中の障害や後片付けは [docs/operations.md](docs/operations.md) を参照してください。
 
 ## アプリを触る
@@ -133,6 +141,7 @@ readiness probeはS3 APIリクエストを発生させます。障害時に一�
 - アプリIAMロールの作成時にpermissions boundaryを必須化。IAM Providerは境界を外せない。
 - アプリは自身のバケットだけにアクセス。ユーザーオブジェクトの削除権限は持たない。
 - Pod Identityの信頼条件をクラスタARN、Namespace、ServiceAccountに限定。
+- Association直後の注入遅延に備え、アプリのIPv4用認証環境変数と専用トークン投影を明示。
 - KROのRBACはaggregationで必要な型だけ追加。開発者はMRやConfigMapを書き換えられない。
 - S3の公開ブロックとAES256暗号化も、アプリ削除時に保持。
 - アプリは非root、read-only filesystem、capabilitiesなし。

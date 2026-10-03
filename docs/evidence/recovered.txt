@@ -1,0 +1,18 @@
+EKS IDP LAB | recovered | 2026-10-02T12:39:58Z
+
+StorageApp (kubectl get storageapps -n idp-lab, selected columns)
+NAME   STATE    READY   REPLICAS
+demo   ACTIVE   True    1
+
+$ kubectl get deployment storage-demo -n idp-lab
+NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+storage-demo   1/1     1            1           7m2s
+
+Managed resources (six kubectl get queries; type / Ready / Synced)
+Bucket	True	True
+BucketPublicAccessBlock	True	True
+BucketServerSideEncryptionConfiguration	True	True
+Role	True	True
+RolePolicy	True	True
+PodIdentityAssociation	True	True
+PASS: denied S3 writes made Ready=False; removing the denial restored Ready=True.

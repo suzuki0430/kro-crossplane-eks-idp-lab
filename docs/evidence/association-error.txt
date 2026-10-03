@@ -1,0 +1,5 @@
+Captured: 2026-10-02T12:32:22Z
+{
+  "state": "IN_PROGRESS",
+  "associationMessage": "create failed: async create failed: resource creation call returned error diags: creating EKS Pod Identity Association: operation error EKS: CreatePodIdentityAssociation, https response error StatusCode: 400, RequestID: a9771ce2-2bf1-4d0f-a615-6f3004bcf483, InvalidParameterException: Caller does not have permission to perform `iam:GetRole`"
+}

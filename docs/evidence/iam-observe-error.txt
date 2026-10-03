@@ -1,0 +1,11 @@
+Captured: 2026-10-02T12:29:12Z
+{
+  "state": "IN_PROGRESS",
+  "ready": [
+    {
+      "status": "False",
+      "reason": "NotReady"
+    }
+  ],
+  "identityMessage": "observe failed: failed to observe the resource: [{0 reading IAM Role (idplab-kro1002a-demo): operation error IAM: GetRole, https response error StatusCode: 403, RequestID: f0747e06-3428-4cb3-bfcf-f7d388291914, api error AccessDenied: User: arn:aws:sts::ACCOUNT_ID:assumed-role/idplab-kro1002a-provider-iam/eks-idplab-kro-provider-a-60b886cc-bfc7-4af0-9ade-daad942a4eba is not authorized to perform: iam:GetRole on resource: role idplab-kro1002a-demo because no identity-based policy allows the iam:GetRole action"
+}

@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1100" viewBox="0 0 1280 1100" role="img" aria-labelledby="title desc">
+  <title id="title">One StorageApp provisions an app and its AWS resources</title>
+  <desc id="desc">A platform operator prepares EKS and authentication with eksctl and CloudFormation. KRO expands a developer's StorageApp into Kubernetes resources and six managed resources. Crossplane AWS providers call AWS APIs. The app accesses S3 using short-lived credentials from EKS Pod Identity.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#526279"/></marker>
+    <marker id="green-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#087f70"/></marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #182d47; }
+      .title { font-size: 34px; font-weight: 700; } .label { font-size: 26px; font-weight: 600; }
+      .body { font-size: 22px; } .small { font-size: 20px; fill: #526279; }
+      .line { fill: none; stroke: #526279; stroke-width: 3; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1280" height="1100" fill="#f8fafc"/>
+  <text x="48" y="60" class="title">One StorageApp, an app and its AWS resources</text>
+  <text x="48" y="100" class="body">KRO: API, dependencies and readiness. Crossplane providers: AWS operations.</text>
+
+  <rect x="48" y="132" width="1184" height="100" rx="16" fill="#fff4df" stroke="#d4af67"/>
+  <text x="72" y="171" class="label">Platform setup first  |  eksctl / CloudFormation</text>
+  <text x="72" y="207" class="body">EKS / VPC / nodes / Pod Identity Agent / provider IAM / permissions boundary</text>
+
+  <rect x="48" y="250" width="1184" height="550" rx="20" fill="#edf3fb" stroke="#b7cbe3" stroke-width="2"/>
+  <text x="72" y="300" class="label">On EKS</text>
+  <rect x="358" y="266" width="564" height="82" rx="14" fill="#182d47"/>
+  <text x="640" y="301" text-anchor="middle" class="label" style="fill:white">Developer → StorageApp</text>
+  <text x="640" y="330" text-anchor="middle" class="small" style="fill:#e0ecfa">storageId / image / replicas</text>
+
+  <path d="M640 348 V434" class="line"/>
+  <rect x="420" y="438" width="440" height="78" rx="14" fill="white" stroke="#6994c6" stroke-width="2"/>
+  <text x="640" y="470" text-anchor="middle" class="label">KRO</text>
+  <text x="640" y="500" text-anchor="middle" class="small">ResourceGraphDefinition (RGD)</text>
+
+  <path d="M550 516 V543 H320 V565" class="line"/>
+  <path d="M730 516 V543 H960 V565" class="line"/>
+  <rect x="80" y="570" width="480" height="86" rx="14" fill="white" stroke="#6994c6" stroke-width="2"/>
+  <text x="320" y="604" text-anchor="middle" class="label">Kubernetes resources</text>
+  <text x="320" y="637" text-anchor="middle" class="small">Deployment / Service / ServiceAccount</text>
+  <rect x="720" y="570" width="480" height="86" rx="14" fill="white" stroke="#6994c6" stroke-width="2"/>
+  <text x="960" y="604" text-anchor="middle" class="label">6 managed resources (MRs)</text>
+  <text x="960" y="637" text-anchor="middle" class="small">S3 × 3 / Role / RolePolicy / Association</text>
+
+  <path d="M320 656 V690" class="line"/>
+  <path d="M960 656 V690" class="line"/>
+  <rect x="80" y="695" width="480" height="72" rx="14" fill="#e1f4ee" stroke="#61a899" stroke-width="2"/>
+  <text x="320" y="725" text-anchor="middle" class="label">App Pod</text>
+  <text x="320" y="753" text-anchor="middle" class="small">Go HTTP API / Pod Identity credentials</text>
+  <rect x="720" y="695" width="480" height="72" rx="14" fill="#e6ecfa" stroke="#6994c6" stroke-width="2"/>
+  <text x="960" y="725" text-anchor="middle" class="label">Crossplane + AWS providers</text>
+  <text x="960" y="753" text-anchor="middle" class="small">Providers for S3 / IAM / EKS</text>
+
+  <path d="M320 767 V902" fill="none" stroke="#087f70" stroke-width="4" marker-end="url(#green-arrow)"/>
+  <rect x="110" y="809" width="420" height="69" rx="8" fill="#f8fafc"/>
+  <text x="320" y="837" text-anchor="middle" class="body" style="fill:#087f70">S3 reads and writes</text>
+  <text x="320" y="865" text-anchor="middle" class="small" style="fill:#087f70">Short-lived credentials</text>
+  <path d="M960 767 V902" class="line"/>
+  <rect x="798" y="820" width="324" height="38" rx="8" fill="#f8fafc"/>
+  <text x="960" y="847" text-anchor="middle" class="body">Manage via AWS APIs</text>
+
+  <rect x="80" y="907" width="1120" height="112" rx="16" fill="white" stroke="#c2cedc" stroke-width="2"/>
+  <text x="320" y="949" text-anchor="middle" class="label">S3</text>
+  <text x="320" y="986" text-anchor="middle" class="body">Bucket / public access block / encryption</text>
+  <path d="M640 925 V1001" stroke="#d8e1eb" stroke-width="2"/>
+  <text x="960" y="949" text-anchor="middle" class="label">Managed AWS resources</text>
+  <text x="960" y="986" text-anchor="middle" class="body">S3 / IAM / Pod Identity Association</text>
+  <text x="48" y="1066" class="small">Responsibility overview. No Crossplane Composition. Providers also authenticate via Pod Identity.</text>
+</svg>

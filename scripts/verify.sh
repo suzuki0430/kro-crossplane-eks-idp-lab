@@ -30,3 +30,4 @@ actor=system:serviceaccount:idp-lab:developer-demo
 if kubectl auth can-i create roles.iam.aws.m.upbound.io -n idp-lab --as="${actor}" >/dev/null; then fail 'Developer can create raw IAM roles.'; fi
 if kubectl auth can-i patch configmaps -n idp-lab --as="${actor}" >/dev/null; then fail 'Developer can alter platform settings.'; fi
 printf 'PASS: binary round trip, missing-object handling, and developer permissions.\n' | tee "${REPO_DIR}/.local/verify.txt"
+bash "${REPO_DIR}/scripts/capture-evidence.sh" ready
