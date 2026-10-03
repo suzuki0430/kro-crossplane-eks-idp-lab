@@ -44,7 +44,7 @@ KROが扱うのはKubernetesリソースです。例えばKROが `Bucket` とい
 
 今回の入口は `StorageApp` というカスタムリソースです。開発者がこれを1つ作ると、KROが必要なKubernetesリソースを作ります。そのうちAWS向けのものを、ProviderがAWSへ反映します。
 
-![構成図：開発者のStorageAppをKROがKubernetesリソースとMRへ展開し、CrossplaneのAWS ProviderがAWSリソースを管理する](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/diagrams/01-architecture.png)
+![構成図：開発者のStorageAppをKROがKubernetesリソースとMRへ展開し、CrossplaneのAWS ProviderがAWSリソースを管理する](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/1c6671021a87992443426ad157cd0dc894fe1807/docs/diagrams/01-architecture.png)
 
 *図1：今回の分担。緑の矢印は、起動したアプリがS3を読み書きする経路です。*
 
@@ -161,7 +161,7 @@ AWSの認証にはPod Identityを使っています。アプリもProviderも短
 
 バケットやAssociationはそのままにして、S3へのヘルスチェックを失敗させます。このDenyは、Crossplaneが管理するRolePolicyとは別のポリシーとして追加しました。
 
-![障害伝播の図：MRはReadyのまま、S3の権限不足がreadiness、Deployment、StorageAppへ伝わる](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/diagrams/02-readiness.png)
+![障害伝播の図：MRはReadyのまま、S3の権限不足がreadiness、Deployment、StorageAppへ伝わる](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/1c6671021a87992443426ad157cd0dc894fe1807/docs/diagrams/02-readiness.png)
 
 *図2：S3の403がアプリのreadinessに伝わり、Deployment、StorageAppの状態も変わります。*
 
@@ -208,7 +208,7 @@ spec:
 
 これでKubernetes上のMRが消えても、AWS上のバケットや設定は削除されません。バケットだけでなく、公開ブロックと暗号化の設定も残すようにしています。
 
-![保持と再接続の図：アプリ削除後にS3を残し、同じstorageIdで再作成したPodから元のデータを読む](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/diagrams/03-retention.png)
+![保持と再接続の図：アプリ削除後にS3を残し、同じstorageIdで再作成したPodから元のデータを読む](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/1c6671021a87992443426ad157cd0dc894fe1807/docs/diagrams/03-retention.png)
 
 *図3：アプリを消し、同じstorageIdで作り直します。S3は残したものを使います。*
 
