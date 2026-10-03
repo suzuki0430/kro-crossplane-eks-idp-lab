@@ -2,7 +2,13 @@
 
 > 編集用の下書きです。「追記メモ」は自分の感想を書き足す場所として残しています。公開するときに置き換えるか、削除してください。
 
-自社のIDP（Internal Developer Platform）を考えるために、KROとCrossplaneを触ってみました。題材は、S3にファイルを保存する小さなアプリです。
+きっかけは、自分も登壇したCNCJのイベントでした。
+
+2026年9月25日の [Cloud Native Platform Engineering Japan Meetup #3 — Platform Engineering Kaigi 前夜祭スペシャル](https://ocgroups.dev/cncf/group/bqd97by/event/c3zf287) で、もう一つの発表がHENNGEのFurqan Habibiさんによる「Building elegant platform with KRO」でした。
+
+KROは、もともとKubeConでセッションを聞いてから気になっていました。そこに今回の発表が重なり、「自分でも動かしてみよう」と思ったのが、今回の検証の出発点です。
+
+自社のIDP（Internal Developer Platform）の勉強も兼ねて、KROとCrossplaneを組み合わせて試すことにしました。題材は、S3にファイルを保存する小さなアプリです。
 
 やりたいことは、「このイメージでアプリを動かしたい」と伝えたら、Deploymentだけでなく、そのアプリ用のS3とIAMも一緒に用意してくれること。開発者が毎回バケットや権限を個別に設定しなくて済む形を目指します。
 
@@ -10,7 +16,7 @@
 
 検証したのは2026年10月2日、東京リージョンの新規EKSです。[実装リポジトリ](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab) と [詳しい検証記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/verification.md) も公開しています。
 
-> **追記メモ①：** 自社で今、ストレージやIAMの依頼をどう受けているか。どこが面倒で、何を減らしたくてIDPを調べているかを2〜3文足す。
+> **追記メモ①：** HENNGEの発表やKubeConのセッションで特に気になった点、自社の状況と重なった点があれば、ここに1〜2文足す。
 
 ## まず、KROとCrossplaneは両方必要？
 
@@ -30,7 +36,7 @@ KROが扱うのはKubernetesリソースです。例えばKROが `Bucket` とい
 
 一方、Crossplane v2のCompositionは、AWSのリソースだけでなくDeploymentやServiceも扱えます。だから「KROがアプリ、Crossplaneがインフラ。両方そろって初めてできる」という説明だと、Crossplane側のできることを狭く捉えすぎてしまいます。[Crossplane v2の変更点](https://docs.crossplane.io/v2.4/whats-new/)
 
-今回両方を使ったのは、**KROで使いやすいAPIを作り、AWS操作をCrossplaneのProviderに任せる分担を試すため**です。両方必要だから採用した、という話ではありません。CrossplaneのCompositionは使っていません。
+今回は、イベントをきっかけに気になった組み合わせを動かしてみることにしました。試した分担は、**KROで開発者向けのAPIを作り、AWS操作をCrossplaneのProviderに任せる形**です。機能上、両方が必要だったから選んだわけではありません。CrossplaneのCompositionは使っていません。
 
 なお、この記事ではCrossplane単独版を実装して比較したわけではありません。単独版にするなら、KROの定義をCrossplaneのAPI定義・Compositionへ作り替え、Readyや削除時の動きも確認し直す必要があります。今の実装からKROだけをアンインストールすれば動く、という意味ではないです。
 
