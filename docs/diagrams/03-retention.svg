@@ -1,62 +1,62 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="930" viewBox="0 0 1280 930" role="img" aria-labelledby="title desc">
-  <title id="title">アプリを削除し、データを保持して同じIDで再接続する</title>
-  <desc id="desc">作成時にファイルを保存し、StorageAppを削除する。KubernetesリソースとMR、アプリ用IAMとAssociationは削除されるが、S3データと公開ブロックと暗号化は保持される。同じstorageIdで作り直した新PodからHTTP GETし、元データとSHA256が一致した。</desc>
+  <title id="title">Delete the app, retain the data and reconnect with the same ID</title>
+  <desc id="desc">Upload a file, then delete StorageApp. Kubernetes resources, managed resources, app IAM and the Pod Identity association are deleted. S3 data, public access block and encryption remain. Recreating the app with the same storageId allows a new Pod to retrieve the original file over HTTP GET with a matching SHA-256 hash.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#526279"/></marker>
     <style>
-      text { font-family: 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif; fill: #182d47; }
+      text { font-family: Arial, Helvetica, sans-serif; fill: #182d47; }
       .title { font-size: 34px; font-weight: 700; } .label { font-size: 26px; font-weight: 600; }
       .body { font-size: 22px; } .small { font-size: 20px; fill: #526279; }
     </style>
   </defs>
   <rect width="1280" height="930" fill="#f8fafc"/>
-  <text x="48" y="60" class="title">アプリとデータの寿命を分ける</text>
-  <text x="48" y="100" class="body">同一アカウント・同一ラボ設定で、storageId: demo を再利用</text>
+  <text x="48" y="60" class="title">Separate app and data lifecycles</text>
+  <text x="48" y="100" class="body">Reuse storageId: demo within the same AWS account and lab configuration</text>
 
   <rect x="48" y="148" width="360" height="504" rx="20" fill="#edf3fb" stroke="#b7cbe3"/>
   <rect x="460" y="148" width="360" height="504" rx="20" fill="#fff4df" stroke="#d4af67"/>
   <rect x="872" y="148" width="360" height="504" rx="20" fill="#edf3fb" stroke="#b7cbe3"/>
-  <text x="76" y="193" class="label">① 作成・書き込み</text>
-  <text x="488" y="193" class="label">② StorageAppを削除</text>
-  <text x="900" y="193" class="label">③ 同じIDで再作成</text>
+  <text x="76" y="193" class="label">1. Create and upload</text>
+  <text x="488" y="193" class="label">2. Delete StorageApp</text>
+  <text x="900" y="193" class="label">3. Reuse the same ID</text>
   <path d="M413 181 H454" fill="none" stroke="#526279" stroke-width="3" marker-end="url(#arrow)"/>
   <path d="M825 181 H866" fill="none" stroke="#526279" stroke-width="3" marker-end="url(#arrow)"/>
 
   <rect x="72" y="222" width="312" height="194" rx="12" fill="white"/>
-  <text x="94" y="260" class="label">アプリが稼働</text>
+  <text x="94" y="260" class="label">App running</text>
   <text x="94" y="304" class="body">Deployment / MR</text>
   <text x="94" y="338" class="body">IAM / Association</text>
-  <text x="94" y="387" class="small">HTTP PUTで元データを保存</text>
+  <text x="94" y="387" class="small">Upload via HTTP PUT</text>
 
   <rect x="484" y="222" width="312" height="194" rx="12" fill="white"/>
-  <text x="506" y="260" class="label">アプリの資源は削除</text>
-  <text x="506" y="304" class="body">KubernetesのMRも消える</text>
-  <text x="506" y="338" class="body">IAM / Associationも削除</text>
-  <text x="506" y="387" class="small">S3をAWS CLIから照合</text>
+  <text x="506" y="260" class="label">App resources deleted</text>
+  <text x="506" y="304" class="body">Kubernetes MRs removed</text>
+  <text x="506" y="338" class="body">IAM / Association deleted</text>
+  <text x="506" y="387" class="small">Check S3 via AWS CLI</text>
 
   <rect x="896" y="222" width="312" height="194" rx="12" fill="white"/>
-  <text x="918" y="260" class="label">新しいPodが稼働</text>
-  <text x="918" y="304" class="body">MR / IAM等を再作成</text>
-  <text x="918" y="338" class="body">同じ外部バケット名に接続</text>
-  <text x="918" y="387" class="small">HTTP GETで元データを取得</text>
+  <text x="918" y="260" class="label">New Pod running</text>
+  <text x="918" y="304" class="body">MRs / IAM recreated</text>
+  <text x="918" y="338" class="body">Connect to the same bucket</text>
+  <text x="918" y="387" class="small">Retrieve via HTTP GET</text>
 
   <rect x="72" y="447" width="312" height="164" rx="12" fill="#e1f4ee" stroke="#61a899"/>
   <rect x="484" y="447" width="312" height="164" rx="12" fill="#e1f4ee" stroke="#61a899"/>
   <rect x="896" y="447" width="312" height="164" rx="12" fill="#e1f4ee" stroke="#61a899"/>
-  <text x="228" y="488" text-anchor="middle" class="label" style="fill:#087f70">S3に保存</text>
-  <text x="640" y="488" text-anchor="middle" class="label" style="fill:#087f70">S3を保持</text>
-  <text x="1052" y="488" text-anchor="middle" class="label" style="fill:#087f70">同じS3を利用</text>
+  <text x="228" y="488" text-anchor="middle" class="label" style="fill:#087f70">Store in S3</text>
+  <text x="640" y="488" text-anchor="middle" class="label" style="fill:#087f70">Retain S3</text>
+  <text x="1052" y="488" text-anchor="middle" class="label" style="fill:#087f70">Reuse S3</text>
   <text x="228" y="532" text-anchor="middle" class="body">uploads/probe.bin</text>
-  <text x="640" y="532" text-anchor="middle" class="body">元ファイルが残る</text>
-  <text x="1052" y="532" text-anchor="middle" class="body">再アップロードなし</text>
-  <text x="228" y="580" text-anchor="middle" class="small">公開ブロック + AES256</text>
-  <text x="640" y="580" text-anchor="middle" class="small">保護設定も保持</text>
-  <text x="1052" y="580" text-anchor="middle" class="small">新PodのrestartCount = 0</text>
+  <text x="640" y="532" text-anchor="middle" class="body">Original file remains</text>
+  <text x="1052" y="532" text-anchor="middle" class="body">No re-upload</text>
+  <text x="228" y="580" text-anchor="middle" class="small">Public access block + AES256</text>
+  <text x="640" y="580" text-anchor="middle" class="small">Protection settings remain</text>
+  <text x="1052" y="580" text-anchor="middle" class="small">New Pod: restartCount = 0</text>
 
   <rect x="48" y="690" width="1184" height="100" rx="16" fill="#182d47"/>
-  <text x="640" y="732" text-anchor="middle" class="label" style="fill:white">元ファイル ＝ 削除後にS3から取得 ＝ 新PodからHTTP GET</text>
-  <text x="640" y="770" text-anchor="middle" class="body" style="fill:#e0ecfa">3つのファイルのSHA256が一致</text>
-  <text x="48" y="839" class="small">S3関連MRはmanagementPoliciesからDeleteを除く。保持はバックアップの代わりにはならない。</text>
-  <text x="48" y="874" class="small">この後EKSも削除し、S3のデータと保護設定が残ることを別途確認した。</text>
-  <text x="48" y="909" class="small">2026-10-02の実AWS検証から作図。任意のバケットimportや別クラスタへの復旧は未検証。</text>
+  <text x="640" y="732" text-anchor="middle" class="label" style="fill:white">Original file = S3 download after deletion = HTTP GET via new Pod</text>
+  <text x="640" y="770" text-anchor="middle" class="body" style="fill:#e0ecfa">All three SHA-256 hashes match</text>
+  <text x="48" y="839" class="small">S3 MRs exclude Delete from managementPolicies. Retention is not a substitute for backup.</text>
+  <text x="48" y="874" class="small">Later, EKS was also deleted; S3 data and protection settings were separately verified to remain.</text>
+  <text x="48" y="909" class="small">Live AWS test: 2026-10-02. Arbitrary bucket import and recovery to another cluster were not tested.</text>
 </svg>

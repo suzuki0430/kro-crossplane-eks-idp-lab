@@ -1,53 +1,53 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1010" viewBox="0 0 1280 1010" role="img" aria-labelledby="title desc">
-  <title id="title">MRがReadyでも、アプリの実アクセスは失敗し得る</title>
-  <desc id="desc">ヘルスチェック用S3プレフィックスのPutObjectをDenyした実験。6種類のMRはReadyとSyncedがTrueのまま、S3は403、readinessは失敗、Deploymentは0/1、StorageAppはReady Falseとなった。専用Denyを取り除くと、Pod再作成コマンドなしで復旧した。</desc>
+  <title id="title">Managed resource readiness does not guarantee app access</title>
+  <desc id="desc">In an experiment denying PutObject on the S3 health-check prefix, all six managed resources stayed Ready and Synced. S3 returned 403, the readiness probe failed, Deployment availability dropped to zero of one, and StorageApp Ready became False. Removing the test Deny policy restored readiness without a manual Pod recreation.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#a94b40"/></marker>
     <style>
-      text { font-family: 'Hiragino Sans', 'Noto Sans CJK JP', sans-serif; fill: #182d47; }
+      text { font-family: Arial, Helvetica, sans-serif; fill: #182d47; }
       .title { font-size: 34px; font-weight: 700; } .label { font-size: 26px; font-weight: 600; }
       .body { font-size: 22px; } .small { font-size: 20px; fill: #526279; }
       .line { fill: none; stroke: #a94b40; stroke-width: 3; marker-end: url(#arrow); }
     </style>
   </defs>
   <rect width="1280" height="1010" fill="#f8fafc"/>
-  <text x="48" y="60" class="title">AWSリソースのReadyと、アプリのReady</text>
-  <text x="48" y="100" class="body">_health/* のPutObjectだけをDenyした実験で観測</text>
+  <text x="48" y="60" class="title">Resource readiness and application readiness</text>
+  <text x="48" y="100" class="body">Observed while denying only PutObject on _health/*</text>
 
   <rect x="48" y="142" width="404" height="601" rx="20" fill="#e6f4ef" stroke="#b3d8c9" stroke-width="2"/>
-  <text x="76" y="190" class="label">Providerが見るリソース</text>
-  <text x="76" y="231" class="body">Bucket / 公開ブロック / 暗号化</text>
+  <text x="76" y="190" class="label">Provider-managed resources</text>
+  <text x="76" y="231" class="body">Bucket / access block / encryption</text>
   <text x="76" y="267" class="body">Role / RolePolicy / Association</text>
   <rect x="76" y="313" width="348" height="117" rx="14" fill="white"/>
   <text x="250" y="359" text-anchor="middle" class="label" style="fill:#087f70">Ready = True</text>
   <text x="250" y="399" text-anchor="middle" class="label" style="fill:#087f70">Synced = True</text>
-  <text x="76" y="486" class="body">6種類すべて、Trueのまま</text>
-  <text x="76" y="539" class="small">バケットやAssociationは存在する。</text>
-  <text x="76" y="571" class="small">管理中のRolePolicyとは別に、</text>
-  <text x="76" y="603" class="small">実験用Denyポリシーを追加した。</text>
-  <text x="76" y="683" class="body" style="font-weight:600">MRのReadyだけでは分からない</text>
+  <text x="76" y="486" class="body">All 6 MRs stayed True.</text>
+  <text x="76" y="539" class="small">The resources still exist.</text>
+  <text x="76" y="571" class="small">The test adds a Deny policy</text>
+  <text x="76" y="603" class="small">separate from the managed policy.</text>
+  <text x="76" y="683" class="body" style="font-weight:600">MR Ready does not prove access.</text>
 
   <rect x="500" y="142" width="732" height="601" rx="20" fill="#fff0ed" stroke="#e9c1b9" stroke-width="2"/>
-  <text x="528" y="190" class="label">アプリからの実アクセスと状態の伝播</text>
+  <text x="528" y="190" class="label">App access and readiness propagation</text>
   <rect x="540" y="215" width="652" height="82" rx="14" fill="white" stroke="#c57565"/>
   <text x="866" y="249" text-anchor="middle" class="label">S3 PutObject → 403 / AccessDenied</text>
-  <text x="866" y="278" text-anchor="middle" class="small">対象はヘルスチェック用の _health/*</text>
+  <text x="866" y="278" text-anchor="middle" class="small">Only the health-check prefix: _health/*</text>
   <path d="M866 297 V334" class="line"/>
   <rect x="540" y="340" width="652" height="82" rx="14" fill="white" stroke="#c57565"/>
-  <text x="866" y="374" text-anchor="middle" class="label">readinessが失敗 → PodがNotReady</text>
-  <text x="866" y="403" text-anchor="middle" class="small">livenessはAWSに依存しない</text>
+  <text x="866" y="374" text-anchor="middle" class="label">Readiness probe fails → Pod NotReady</text>
+  <text x="866" y="403" text-anchor="middle" class="small">Liveness does not depend on AWS</text>
   <path d="M866 422 V459" class="line"/>
   <rect x="540" y="465" width="652" height="82" rx="14" fill="white" stroke="#c57565"/>
   <text x="866" y="499" text-anchor="middle" class="label">Deployment = 0/1</text>
-  <text x="866" y="528" text-anchor="middle" class="small">availableReplicasが要求数を満たさない</text>
+  <text x="866" y="528" text-anchor="middle" class="small">availableReplicas is below the requested count</text>
   <path d="M866 547 V584" class="line"/>
   <rect x="540" y="590" width="652" height="111" rx="14" fill="#a94b40"/>
   <text x="866" y="634" text-anchor="middle" class="label" style="fill:white">StorageApp Ready = False</text>
-  <text x="866" y="674" text-anchor="middle" class="body" style="fill:white">KROのreadyWhenで開発者APIへ反映</text>
+  <text x="866" y="674" text-anchor="middle" class="body" style="fill:white">KRO readyWhen propagates status to the developer API</text>
 
   <rect x="48" y="783" width="1184" height="106" rx="16" fill="#e6f4ef" stroke="#b3d8c9"/>
-  <text x="76" y="826" class="label" style="fill:#087f70">復旧：専用Denyを除去 → Deployment 1/1 → StorageApp Ready=True</text>
-  <text x="76" y="864" class="body">Podを再作成するコマンドは実行せず、readinessとコントローラーの再試行で復旧。</text>
-  <text x="48" y="940" class="small">この図はuploads/*の403を示すものではない。利用経路は別のHTTP Put/Get試験で確認した。</text>
-  <text x="48" y="975" class="small">状態反映にはprobe周期やreconcileの遅延がある。2026-10-02の実AWS検証から作図。</text>
+  <text x="76" y="826" class="label" style="fill:#087f70">Remove test Deny → Deployment 1/1 → StorageApp Ready=True</text>
+  <text x="76" y="864" class="body">Probes and controllers retry. Recovery required no manual Pod recreation.</text>
+  <text x="48" y="940" class="small">No 403 on uploads/* is shown here. The upload path was verified separately with HTTP PUT/GET.</text>
+  <text x="48" y="975" class="small">Status changes take probe and reconcile time. Based on live AWS validation on 2026-10-02.</text>
 </svg>
