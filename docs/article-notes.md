@@ -1,6 +1,6 @@
 # Qiita記事の編集メモ
 
-本文は [qiita-draft.md](qiita-draft.md)。スクショ8枚と図3枚を挿入済み。
+本文は [qiita-draft.md](qiita-draft.md)。英語のスクショと図を挿入済み。Composition単独版の実測と比較節も追加した。
 実際の検証結果は [verification.md](verification.md)、認証の試験範囲は [security-review.md](security-review.md) に残す。
 
 ## 感想を書き足す場所
@@ -25,7 +25,7 @@ KubeConの開催年・開催地・セッション名は未指定なので補っ�
 
 2026-10-03に、冒頭を「KROとCrossplaneは両方必要か」→「今回の分担」→「CLIでのデプロイ」に変更した。
 本文は試した順に読める口調にし、バージョン・環境の細部は後半へ移した。
-Crossplane単独版の比較検証は未実施で、KRO併用を必須・優位と説明しない。
+2026-10-04にComposition単独版も新規EKSで検証した。KRO併用を必須・優位とは説明せず、同じ入力で確認した動作と定義の違いを示す。
 
 ## 公開時の仕上げ
 
@@ -35,8 +35,9 @@ Crossplane単独版の比較検証は未実施で、KRO併用を必須・優位�
 4. Qiitaのプレビューで画像・コードブロック・表を確認する。
 
 画像と実装・証跡へのリンクは、公開GitHubリポジトリのコミットに固定した。
-英語の図3枚は `1c6671021a87992443426ad157cd0dc894fe1807`、
-スクショと実装・証跡は検証時の `49a3bae7e3c6198f3a15caefa5adbd2f41d5b658` を参照する。
+既存の英語図3枚は `1c6671021a87992443426ad157cd0dc894fe1807`、
+2026-10-02の原証跡は `49a3bae7e3c6198f3a15caefa5adbd2f41d5b658` を参照する。
+英語スクショ・追加比較図・Composition検証記録は `d0055ec1707e0ff02ef38f6d47fc2722541e0c35` に固定する。
 PRブランチ削除後もブランチ名に依存しない。本文の画像は絶対URLなので、相対パスの修正なしで貼り付けられる。
 Qiita側に画像を置きたい場合は [screenshots/](screenshots/) と [diagrams/](diagrams/) のPNG/JPEGを
 アップロードし、対応する画像URLを置き換える。リポジトリ内のファイルを変更した場合も、固定URLの更新が必要。
@@ -45,15 +46,19 @@ Qiita側に画像を置きたい場合は [screenshots/](screenshots/) と [diag
 
 ## 図とスクショの扱い
 
-- [構成図・障害伝播図・保持と再接続の図](diagrams/) はPNGと編集可能なSVGを保存している。
+- [構成図・障害伝播図・保持と再接続・2実装の比較図](diagrams/) はPNGと編集可能なSVGを保存している。
 - 図中の文字は英語で統一し、Qiitaとdev.toで同じ画像を使う。記事ごとにキャプションと代替テキストを翻訳する。
-- [スクショ一覧](screenshots/README.md) に出典とキャプションがある。AWSコンソールは01・07・08、実CLI出力をHTMLで表示した画面は02〜06。
+- [スクショ一覧](screenshots/README.md) に出典とキャプションがある。AWSコンソールは01・07・08、実CLI出力をHTMLで表示した画面は02〜06・09・10。
 - AWSコンソールのアカウント情報を撮影範囲から除き、CLIテキストのアカウントIDを置換している。
-- 画像は2026-10-02の記録。検証後のEKSは削除済みで、保持S3と結果だけが残っている。
+- KROのCLI出力は2026-10-02の原記録を英語の見出しで再表示。Composition版のCLIとコンソール撮影は10月4日。01のActiveは比較用クラスタ、07のS3は元のKRO版のデータ、08の0件は両方の片付け後の状態。
+- 両クラスタを削除し、ラボごとのS3と結果を保持する。
 
 ## 編集しても残したい技術上の区別
 
-- Crossplane v2はProvider・Function等を組み込めば、KROなしでも構成できる。単独版の実装比較は未実施。
+- Crossplane v2 + AWS Provider + Go-templating Functionで、KROなしでも今回のアプリを構成できた。API内部のフィールド・Conditions・削除順まで完全に同一とは扱わない。
+- 単独版の上流障害でDeploymentのUIDを維持する試験はkind上でstatusを模擬。実AWSではreadiness用Denyを試した。
+- 単独版のWatchCircuitOpenと反映待ちも記録する。別時刻・別クラスタなので性能比較にしない。
+- 開発者用のNamespace RBACと、Crossplane本体が持つ標準chartのクラスタ全体の権限を混同しない。
 - KRO本体にはAWS操作機能がない。今回のProviderやACKなど、AWSを操作する別の担当が必要。
 - デプロイはCLIのスクリプトからStorageAppをkubectl applyした。ポータル、GitOps、CIからのEKSデプロイは作っていない。
 - 障害実験は、readinessの失敗によるDeploymentの状態変化が、RGDの `readyWhen` を通じてStorageAppへ伝わることの動作確認。Deploymentが0/1になること自体はKubernetesの通常の挙動。
