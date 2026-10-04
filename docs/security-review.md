@@ -28,3 +28,21 @@ audienceは `pods.eks.amazonaws.com`、有効期間は86400秒、mountは読み�
 この実装は敵対的マルチテナント環境を対象としない。同じNamespaceの開発者は他のStorageAppも編集でき、
 任意のコンテナイメージを指定できる。チーム別Namespace、IAM境界、admission policy、イメージ許可制、
 storageIdの所有権・一意性などは自社IDPへの採用時に設計する。公開HTTP向けユーザー認証も実装していない。
+
+## Composition版のRBAC
+
+2026-10-04にCrossplane 2.4.2の固定Helm chartのClusterRoleと、合成後のIAMを確認した。
+標準chartはCrossplane本体に、Deployment・Service・ServiceAccount・ConfigMap・Secret等の
+クラスタ全体の管理権限を付与する。AWS MRについてはProviderインストール時のRBAC aggregationが権限を追加する。
+NamespaceのRoleを追加しても、既にあるClusterRoleの権限は狭まらない。
+そのため独自の重複RBACは配布せず、専用の検証クラスタで標準権限を使用した。
+
+kind上でも、Crossplane SAがdefault NamespaceへDeploymentを作成できることを確認する。
+AWS Providerを動かさずCRDだけ使うkindテストでは、[テスト専用RBAC](../tests/composition-rbac.yaml) で6型のMR権限を代替する。
+これはAWS環境に適用しない。
+実AWSで開発者SAによるStorageApp作成・スケールを確認し、IAM MR作成とConfigMap変更は拒否した。
+XRDは `enforcedCompositionRef` でComposition選択を固定する。ただしStorageAppの所有権や任意イメージの制約を追加するものではない。
+
+Goテンプレートは管理者が配布し、開発者のimageはYAMLとしてquoteする。storageIdはAPIの形式・不変制約を通る。
+Functionのパッケージをdigest固定し、FunctionへAWS認証情報を渡さず、AWS操作は既存Providerに任せる。
+共通IAMの7項目も [シミュレーターで再検証](evidence/composition/iam-policy-simulation.txt) した。

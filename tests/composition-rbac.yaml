@@ -1,0 +1,30 @@
+# kind only: installed Providers normally aggregate these MR permissions into
+# Crossplane's role. This test installs CRDs without Provider controllers.
+# Native resource permissions already come from the pinned Crossplane chart.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: crossplane-test-aws-resources
+rules:
+  - apiGroups: [s3.aws.m.upbound.io]
+    resources: [buckets, bucketpublicaccessblocks, bucketserversideencryptionconfigurations]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [iam.aws.m.upbound.io]
+    resources: [roles, rolepolicies]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [eks.aws.m.upbound.io]
+    resources: [podidentityassociations]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: crossplane-test-aws-resources
+subjects:
+  - kind: ServiceAccount
+    name: crossplane
+    namespace: crossplane-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: crossplane-test-aws-resources

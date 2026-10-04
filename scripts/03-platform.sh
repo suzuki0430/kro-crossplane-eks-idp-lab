@@ -60,7 +60,6 @@ kubectl -n idp-lab create configmap storage-platform \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${REPO_DIR}/platform/tenant.yaml"
 if [[ "${COMPOSER}" == crossplane ]]; then
-  kubectl apply -f "${REPO_DIR}/platform/composition/rbac.yaml"
   kubectl apply -f "${REPO_DIR}/platform/composition/function.yaml"
   kubectl wait --for=condition=Healthy function/function-go-templating --timeout=300s
   kubectl apply -f "${REPO_DIR}/platform/composition/xrd.yaml"

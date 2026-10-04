@@ -27,7 +27,7 @@ helm upgrade --install crossplane "${REPO_DIR}/.local/crossplane-${CROSSPLANE_VE
 (cd "${REPO_DIR}" && shasum -a 256 -c tests/crds.sha256)
 kubectl apply --server-side -f "${REPO_DIR}/tests/crds/"
 kubectl create namespace idp-lab
-kubectl apply -f "${REPO_DIR}/platform/composition/rbac.yaml"
+kubectl apply -f "${REPO_DIR}/tests/composition-rbac.yaml"
 kubectl apply -f "${REPO_DIR}/platform/composition/function.yaml"
 kubectl wait --for=condition=Healthy function/function-go-templating --timeout=300s
 kubectl apply -f "${REPO_DIR}/platform/composition/xrd.yaml"

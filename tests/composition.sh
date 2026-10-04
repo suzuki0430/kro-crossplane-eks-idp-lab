@@ -7,12 +7,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/../scripts/common.sh"
 require kubectl jq
 [[ "$(kubectl config current-context)" == kind-* ]] || fail 'Composition tests require a disposable kind context.'
 readonly TEST_NAMESPACE=idp-lab
-# Realtime watches need read access; mutations must stay inside the lab namespace.
+# The pinned Helm chart grants Crossplane cluster-wide native resource access.
+# This is controller authority, not the developer-facing tenant Role.
 controller=system:serviceaccount:crossplane-system:crossplane
-[[ "$(kubectl auth can-i watch deployments --all-namespaces --as="${controller}")" == yes ]] || fail 'Controller cannot observe deployments.'
-if kubectl auth can-i create deployments -n default --as="${controller}" >/dev/null; then
-  fail 'Controller can create deployments outside idp-lab.'
-fi
+[[ "$(kubectl auth can-i create deployments -n default --as="${controller}")" == yes ]] || fail 'Unexpected Crossplane chart permissions.'
 kubectl create namespace "${TEST_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n "${TEST_NAMESPACE}" create configmap storage-platform \
   --from-literal=labId=testing1 --from-literal=region=ap-northeast-1 --from-literal=clusterName=idplab-testing1 \
