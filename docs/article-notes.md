@@ -56,7 +56,8 @@ Qiita側に画像を置きたい場合は [screenshots/](screenshots/) と [diag
 - Crossplane v2はProvider・Function等を組み込めば、KROなしでも構成できる。単独版の実装比較は未実施。
 - KRO本体にはAWS操作機能がない。今回のProviderやACKなど、AWSを操作する別の担当が必要。
 - デプロイはCLIのスクリプトからStorageAppをkubectl applyした。ポータル、GitOps、CIからのEKSデプロイは作っていない。
-- 障害実験のDeny対象は `_health/*`。`uploads/*` も403になったという実測ではない。
+- 障害実験は、readinessの失敗によるDeploymentの状態変化が、RGDの `readyWhen` を通じてStorageAppへ伝わることの動作確認。Deploymentが0/1になること自体はKubernetesの通常の挙動。
+- Deny対象は `_health/*` のPutObject。`uploads/*` のアクセス障害を検知できるかは未確認で、前節のHTTP Put/Getは正常時の確認。
 - IAMシミュレーションと、実認証情報でのAWS API試験を混同しない。
 - 同じstorageIdでの再接続は同一アカウント・同一ラボ設定で検証。別クラスタ復旧や任意バケットimportは未検証。
 - Pod Identityの注入が間に合わなかった観測から、AWS内部キャッシュの原因までは断定しない。

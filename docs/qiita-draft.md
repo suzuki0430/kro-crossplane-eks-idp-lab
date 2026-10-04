@@ -178,9 +178,9 @@ AWSの認証にはPod Identityを使っています。アプリもProviderも短
 
 *スクショ2：AWSのMRはすべてReadyなのに、アプリ側はReady=Falseになっています。*
 
-ここは今回確かめたかったところです。MRがReadyでも、アプリの認証情報でS3を操作できることまでは分かりませんでした。アプリからのチェックをDeploymentの状態につなぐと、StorageAppを見る側にも異常を返せます。
+readinessが失敗してDeploymentが0/1になるのは、Kubernetesの通常の動きです。今回確認したのは、RGDの `readyWhen` に書いたDeploymentの条件が効き、**StorageAppもReady=Falseになること**です。MRがReadyのままでも、Deploymentの条件を満たさなければStorageApp全体はReadyになりません。
 
-今回Denyしたのは **`_health/*` だけ**なので、`uploads/*` も403になった、とは言えません。同じバケットでも、パスごとの権限は別です。実際の利用パスは前のHTTP Put/Getで確認し、ここではreadinessが失敗したときの動きを見ています。
+この実験は、定義したReadyの条件が働くことの動作確認です。Denyの対象は `_health/*` のPutObjectだけなので、`uploads/*` のアクセス障害を検知できるかは未確認です。前節のHTTP Put/Getも、正常時の保存・取得を確認したものです。
 
 Denyを外すと、Podを作り直すコマンドを実行せずに、StorageAppがReady=Trueへ戻りました。
 
