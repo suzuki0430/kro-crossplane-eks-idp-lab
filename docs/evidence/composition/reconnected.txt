@@ -1,0 +1,34 @@
+EKS IDP LAB | crossplane | reconnected | 2026-10-04T13:11:04Z
+
+StorageApp (kubectl get storageapps -n idp-lab, selected columns)
+NAME   READY   REPLICAS
+demo   True    1
+
+$ kubectl get deployment storage-demo -n idp-lab
+NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+storage-demo   1/1     1            1           62s
+
+Managed resources (six kubectl get queries; type / Ready / Synced)
+Bucket	True	True
+BucketPublicAccessBlock	True	True
+BucketServerSideEncryptionConfiguration	True	True
+Role	True	True
+RolePolicy	True	True
+PodIdentityAssociation	True	True
+
+$ aws s3api get-public-access-block / get-bucket-encryption
+{
+    "BlockPublicAcls": true,
+    "IgnorePublicAcls": true,
+    "BlockPublicPolicy": true,
+    "RestrictPublicBuckets": true
+}
+{
+    "SSEAlgorithm": "AES256"
+}
+
+$ sha256(original / retained / reconnected)
+e4b50809a611331a16f92e69c71e764722afb8ea13a460a113fbafb6745abd4b  probe.bin
+e4b50809a611331a16f92e69c71e764722afb8ea13a460a113fbafb6745abd4b  retained.bin
+e4b50809a611331a16f92e69c71e764722afb8ea13a460a113fbafb6745abd4b  reconnected.bin
+PASS: retained data and protection settings; the new pod read the original bytes via HTTP.

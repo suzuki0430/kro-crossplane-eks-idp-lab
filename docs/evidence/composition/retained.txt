@@ -1,0 +1,24 @@
+EKS IDP LAB | crossplane | retained | 2026-10-04T13:08:48Z
+
+StorageApp (kubectl get storageapps -n idp-lab, selected columns)
+NAME   READY   REPLICAS
+
+$ kubectl get deployment storage-demo -n idp-lab
+
+Managed resources (six kubectl get queries; type / Ready / Synced)
+
+$ aws s3api get-public-access-block / get-bucket-encryption
+{
+    "BlockPublicAcls": true,
+    "IgnorePublicAcls": true,
+    "BlockPublicPolicy": true,
+    "RestrictPublicBuckets": true
+}
+{
+    "SSEAlgorithm": "AES256"
+}
+
+$ sha256(original / retained / reconnected)
+e4b50809a611331a16f92e69c71e764722afb8ea13a460a113fbafb6745abd4b  probe.bin
+e4b50809a611331a16f92e69c71e764722afb8ea13a460a113fbafb6745abd4b  retained.bin
+PASS: deleted StorageApp; original bytes, public-access block, and AES256 encryption remain.

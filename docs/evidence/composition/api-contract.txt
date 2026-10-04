@@ -1,0 +1,26 @@
+EKS IDP LAB | crossplane | API contract | 2026-10-04T13:11:28Z
+
+Server-side validation as developer-demo
+The StorageApp "demo" is invalid: spec.storageId: Invalid value: "changed": storageId is immutable; recreate to reconnect.
+The StorageApp "demo" is invalid: spec.replicas: Invalid value: 0: spec.replicas in body should be greater than or equal to 1
+The StorageApp "demo" is invalid: spec.replicas: Invalid value: 4: spec.replicas in body should be less than or equal to 3
+
+Scale to 2 through StorageApp
+storageapp.platform.example.com/demo patched
+deployment.apps/storage-demo condition met
+deployment "storage-demo" successfully rolled out
+storageapp.platform.example.com/demo condition met
+storageapp.platform.example.com/demo condition met
+NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+storage-demo   2/2     2            2           2m26s
+
+Scale to 1 through StorageApp
+storageapp.platform.example.com/demo patched
+deployment.apps/storage-demo condition met
+deployment "storage-demo" successfully rolled out
+storageapp.platform.example.com/demo condition met
+storageapp.platform.example.com/demo condition met
+NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+storage-demo   1/1     1            1           3m27s
+
+PASS: immutable storageId, replica limits, and live 1 -> 2 -> 1 scaling.

@@ -1,0 +1,58 @@
+EKS IDP LAB | crossplane | cleanup | 2026-10-04T13:27:40Z
+
+EKS clusters in Tokyo: []
+
+Lab CloudFormation stacks
+[
+  {
+    "name": "idplab-cp1004a-bootstrap",
+    "status": "DELETE_COMPLETE"
+  },
+  {
+    "name": "eksctl-idplab-cp1004a-nodegroup-lab",
+    "status": "DELETE_COMPLETE"
+  },
+  {
+    "name": "eksctl-idplab-cp1004a-cluster",
+    "status": "DELETE_COMPLETE"
+  }
+]
+
+Lab VPCs remaining: 0
+Lab network interfaces remaining: 0
+Lab subnets remaining: 0
+Recorded EC2 instance state: terminated
+Recorded EBS volumes remaining: 0
+Lab IAM roles remaining: 0
+Lab IAM managed policies remaining: 0
+Lab ECR repositories remaining: 0
+
+Retained Composition-run objects (key / bytes):
+[
+    {
+        "key": "uploads/probe.bin",
+        "bytes": 39
+    }
+]
+
+Retained public-access block:
+{
+    "BlockPublicAcls": true,
+    "IgnorePublicAcls": true,
+    "BlockPublicPolicy": true,
+    "RestrictPublicBuckets": true
+}
+
+Retained encryption:
+{
+    "SSEAlgorithm": "AES256"
+}
+
+Original / after EKS cleanup:
+e4b50809a611331a16f92e69c71e764722afb8ea13a460a113fbafb6745abd4b  probe.bin
+e4b50809a611331a16f92e69c71e764722afb8ea13a460a113fbafb6745abd4b  composition-final-retained.bin
+
+Original KRO-run data is still unchanged:
+e9b15bfbaa4dd1b8ff52cbe1dbca0573fdabaca94daf0330bdfbec00d976c40d
+
+PASS: both EKS labs removed; both original S3 payloads retained.

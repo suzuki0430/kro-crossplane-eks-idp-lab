@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="880" viewBox="0 0 1280 880" role="img" aria-labelledby="title desc">
+  <title id="title">Same app inputs, two composition implementations</title>
+  <desc id="desc">KRO uses an RGD and references to determine dependencies. The Crossplane-only variant uses a namespaced XRD and a Go-templating Composition Function with explicit initial creation gates. Both create three Kubernetes resources and six AWS managed resources with the same providers, Pod Identity and S3 retention policy. They were validated in separate EKS runs.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#526279"/></marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #182d47; }
+      .title { font-size: 34px; font-weight: 700; }
+      .label { font-size: 27px; font-weight: 600; }
+      .body { font-size: 23px; }
+      .small { font-size: 20px; fill: #526279; }
+      .line { fill: none; stroke: #526279; stroke-width: 3; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1280" height="880" fill="#f8fafc"/>
+  <text x="48" y="60" class="title">Same app inputs, two ways to compose</text>
+  <text x="48" y="102" class="body">StorageApp: storageId / image / replicas</text>
+  <rect x="48" y="138" width="570" height="312" rx="16" fill="#edf3fb" stroke="#6994c6" stroke-width="2"/>
+  <text x="76" y="182" class="label">KRO + Crossplane</text>
+  <text x="76" y="221" class="small">KRO 0.9.4 / validated Oct 2, 2026</text>
+  <text x="76" y="273" class="body">RGD: API + resource templates</text>
+  <text x="76" y="316" class="body">References → dependency graph</text>
+  <text x="76" y="359" class="body">readyWhen → readiness conditions</text>
+  <text x="76" y="414" class="small">No Crossplane Composition in this variant</text>
+  <rect x="662" y="138" width="570" height="312" rx="16" fill="#e8f4ee" stroke="#61a899" stroke-width="2"/>
+  <text x="690" y="182" class="label">Crossplane Composition</text>
+  <text x="690" y="221" class="small">No KRO / validated Oct 4, 2026</text>
+  <text x="690" y="273" class="body">XRD: namespaced API</text>
+  <text x="690" y="316" class="body">Go template: explicit creation gates</text>
+  <text x="690" y="359" class="body">Function: composed + aggregate readiness</text>
+  <text x="690" y="414" class="small">Keep existing children during upstream failures</text>
+  <path d="M333 450 V488 H640 V523" class="line"/>
+  <path d="M947 450 V488 H640" fill="none" stroke="#526279" stroke-width="3"/>
+  <rect x="132" y="528" width="1016" height="110" rx="16" fill="white" stroke="#b7cbe3" stroke-width="2"/>
+  <text x="640" y="571" text-anchor="middle" class="label">3 Kubernetes resources + 6 AWS managed resources</text>
+  <text x="640" y="611" text-anchor="middle" class="body">Deployment / Service / ServiceAccount + S3 / IAM / Pod Identity</text>
+  <path d="M640 638 V672" class="line"/>
+  <rect x="132" y="677" width="1016" height="112" rx="16" fill="#fff4df" stroke="#d4af67"/>
+  <text x="640" y="719" text-anchor="middle" class="label">Shared runtime and cloud behavior</text>
+  <text x="640" y="759" text-anchor="middle" class="body">Crossplane 2.4.2 / AWS providers 2.8.1 / same app / retained S3</text>
+  <text x="48" y="842" class="small">Separate EKS runs. Behavior comparison, not a performance benchmark or a full API equivalence claim.</text>
+</svg>

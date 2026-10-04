@@ -1,0 +1,89 @@
+EKS IDP LAB | crossplane | environment | 2026-10-04T13:12:18Z
+
+{
+    "name": "idplab-cp1004a",
+    "status": "ACTIVE",
+    "version": "1.36",
+    "platformVersion": "eks.14"
+}
+{
+  "client": "v1.36.1",
+  "server": "v1.36.4-eks-cfb47f5"
+}
+
+Installed controllers (no KRO)
+NAME                                  READY   IMAGE
+crossplane                            1       xpkg.crossplane.io/crossplane/crossplane:v2.4.2
+crossplane-rbac-manager               1       xpkg.crossplane.io/crossplane/crossplane:v2.4.2
+function-go-templating-f6c0b173586f   1       xpkg.crossplane.io/crossplane-contrib/function-go-templating@sha256:d57fcf0b05f50d7ed7fa3a2e754fdc536aa78c22fc38505074d2dab114dda0ec
+provider-aws-eks-40b3a8e6121d         1       xpkg.crossplane.io/crossplane-contrib/provider-aws-eks:v2.8.1
+provider-aws-iam-ee470cc846e3         1       xpkg.crossplane.io/crossplane-contrib/provider-aws-iam:v2.8.1
+provider-aws-s3-85e6dfb2fd9b          1       xpkg.crossplane.io/crossplane-contrib/provider-aws-s3:v2.8.1
+provider-family-aws-3fb6ec3fcb08      1       xpkg.crossplane.io/crossplane-contrib/provider-family-aws:v2.8.1
+
+KRO CRD: absent
+
+Composite API and Function
+NAME                                                                                       ESTABLISHED   OFFERED   AGE
+compositeresourcedefinition.apiextensions.crossplane.io/storageapps.platform.example.com   True                    8m20s
+
+NAME                                                  XR-KIND      XR-APIVERSION                   AGE
+composition.apiextensions.crossplane.io/storage-app   StorageApp   platform.example.com/v1alpha1   8m18s
+
+NAME                                                INSTALLED   HEALTHY   PACKAGE                                                                                                                                AGE
+function.pkg.crossplane.io/function-go-templating   True        True      xpkg.crossplane.io/crossplane-contrib/function-go-templating@sha256:d57fcf0b05f50d7ed7fa3a2e754fdc536aa78c22fc38505074d2dab114dda0ec   8m30s
+
+App image
+ACCOUNT_ID.dkr.ecr.ap-northeast-1.amazonaws.com/idplab-cp1004a/storage-api@sha256:fe711ad2f32a287433df85ec66c39fee5201e8aae25ff14318d38a9c4241ab44
+
+StorageApp conditions
+[
+  {
+    "lastTransitionTime": "2026-10-04T13:11:31Z",
+    "observedGeneration": 10,
+    "reason": "ReconcileSuccess",
+    "status": "True",
+    "type": "Synced"
+  },
+  {
+    "lastTransitionTime": "2026-10-04T13:11:31Z",
+    "observedGeneration": 10,
+    "reason": "Creating",
+    "status": "False",
+    "type": "Ready"
+  },
+  {
+    "lastTransitionTime": "2026-10-04T13:11:31Z",
+    "message": "Too many watch events from StorageApp/demo (idp-lab). Allowing events periodically.",
+    "observedGeneration": 10,
+    "reason": "WatchCircuitOpen",
+    "status": "False",
+    "type": "Responsive"
+  }
+]
+
+After scale tests | 2026-10-04T13:14:06Z
+[
+  {
+    "lastTransitionTime": "2026-10-04T13:13:28Z",
+    "observedGeneration": 11,
+    "reason": "ReconcileSuccess",
+    "status": "True",
+    "type": "Synced"
+  },
+  {
+    "lastTransitionTime": "2026-10-04T13:13:28Z",
+    "observedGeneration": 11,
+    "reason": "Available",
+    "status": "True",
+    "type": "Ready"
+  },
+  {
+    "lastTransitionTime": "2026-10-04T13:13:27Z",
+    "message": "Too many watch events from StorageApp/demo (idp-lab). Allowing events periodically.",
+    "observedGeneration": 11,
+    "reason": "WatchCircuitOpen",
+    "status": "False",
+    "type": "Responsive"
+  }
+]

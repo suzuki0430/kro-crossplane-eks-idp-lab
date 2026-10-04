@@ -1,0 +1,22 @@
+EKS IDP LAB | crossplane | failure | 2026-10-04T13:07:53Z
+
+StorageApp (kubectl get storageapps -n idp-lab, selected columns)
+NAME   READY   REPLICAS
+demo   False   0
+
+$ kubectl get deployment storage-demo -n idp-lab
+NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+storage-demo   0/1     1            0           2m7s
+
+Managed resources (six kubectl get queries; type / Ready / Synced)
+Bucket	True	True
+BucketPublicAccessBlock	True	True
+BucketServerSideEncryptionConfiguration	True	True
+Role	True	True
+RolePolicy	True	True
+PodIdentityAssociation	True	True
+
+$ kubectl logs deployment/storage-demo --tail=3
+{"time":"2026-10-04T13:07:50.133436042Z","level":"WARN","msg":"storage readiness failed","error":"readiness put: operation error S3: PutObject, https response error StatusCode: 403, RequestID: 8096B8CH71HFARQW, HostID: bbaAPhTDAAGNtos/m72r3xYr19wWCDWSPnK6mpvQdxa0hgFEM9Atm87nbFaBidnzzO2T+O07xHMSvAhptAZtRcdjn3EZFa0h, api error AccessDenied: User: arn:aws:sts::ACCOUNT_ID:assumed-role/idplab-cp1004a-demo/eks-idplab-cp1-storage-de-36b46a40-3a41-4160-b0cd-94847b6696a0 is not authorized to perform: s3:PutObject on resource: \"arn:aws:s3:::idplab-ACCOUNT_ID-cp1004a-demo/_health/storage-demo-85bfd6c76f-45vwf\" with an explicit deny in an identity-based policy"}
+{"time":"2026-10-04T13:07:50.152602394Z","level":"WARN","msg":"storage readiness failed","error":"readiness put: operation error S3: PutObject, https response error StatusCode: 403, RequestID: 8097VHRJKPACBDV0, HostID: /9eRfcj6/YQroZMpW+LLKXXWC199rWvQURMQ7NmPcnTsZRsDpG+I3fWrsYXacbO75xPtFxK9wJs=, api error AccessDenied: User: arn:aws:sts::ACCOUNT_ID:assumed-role/idplab-cp1004a-demo/eks-idplab-cp1-storage-de-36b46a40-3a41-4160-b0cd-94847b6696a0 is not authorized to perform: s3:PutObject on resource: \"arn:aws:s3:::idplab-ACCOUNT_ID-cp1004a-demo/_health/storage-demo-85bfd6c76f-45vwf\" with an explicit deny in an identity-based policy"}
+{"time":"2026-10-04T13:08:00.16402302Z","level":"WARN","msg":"storage readiness failed","error":"readiness put: operation error S3: PutObject, https response error StatusCode: 403, RequestID: 2XA80G9KE4W7150M, HostID: 3oEzETGtW6v8I3k5pDGgk4GqHhgNf13tgCJxh3ww3aRvDxlwcVo0aXhlq5jUma+e2iKLK/sRmJE=, api error AccessDenied: User: arn:aws:sts::ACCOUNT_ID:assumed-role/idplab-cp1004a-demo/eks-idplab-cp1-storage-de-36b46a40-3a41-4160-b0cd-94847b6696a0 is not authorized to perform: s3:PutObject on resource: \"arn:aws:s3:::idplab-ACCOUNT_ID-cp1004a-demo/_health/storage-demo-85bfd6c76f-45vwf\" with an explicit deny in an identity-based policy"}

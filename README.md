@@ -7,7 +7,8 @@ Ready判定、権限不足からの復旧、アプリ削除後のデータ保持
 **実行済みの検証結果は [docs/verification.md](docs/verification.md) に記録します。**
 2026-10-02に新規EKS上で、実S3の読み書き・権限不足からの復旧・削除後の保持と再接続を検証しました。
 [記事用スクリーンショット](docs/screenshots/) と [実環境で見つけた注意点](docs/verification.md#実awsで見つかった3点と修正) も残しています。
-[Qiita記事の下書き](docs/qiita-draft.md) はスクショ8枚・図3枚入りで、感想の追記欄があります。
+2026-10-04にはKROを入れない新規EKSで [Composition単独版](docs/composition-comparison.md) も検証しました。
+[Qiita記事の下書き](docs/qiita-draft.md) は英語のスクショ・図入りで、感想の追記欄があります。
 [編集・公開用メモ](docs/article-notes.md) と [編集可能な図の元データ](docs/diagrams/) も用意しています。
 CIはPRとmainへの取り込み時に実行し、`Run workflow` からの手動実行にも対応します。
 
@@ -22,10 +23,11 @@ flowchart LR
   Workload -->|短期認証情報で読み書き| Cloud
 ```
 
-CrossplaneのCompositionは使わず、KROがnamespaced Managed Resourceを直接生成します。
+既定の `COMPOSER=kro` では、Compositionは使わずKROがnamespaced Managed Resourceを直接生成します。
 Crossplane v2単独でもKubernetesリソースを合成できるため、これは学習のための設計上の選択です。
 KRO本体はAWS APIを操作しません。S3やIAMの作成には、今回のAWS Providerのような実行担当が別に必要です。
-KROを使わずCrossplane側にまとめる場合は、Provider等を用意し、API定義・Compositionへ作り替えます。
+`COMPOSER=crossplane` では [XRD・Composition・Function](platform/composition/) を使います。
+同じAPI名を使うため、切り替えには別のLAB_IDと新規EKSが必要です。
 EKSとProviderの認証はeksctl / CloudFormationで先に用意し、起動依存を避けます。
 
 ## バージョン
@@ -35,12 +37,13 @@ EKSとProviderの認証はeksctl / CloudFormationで先に用意し、起動依�
 | KRO / Helm chart | 0.9.4 |
 | Crossplane / Helm chart | 2.4.2 |
 | AWS Provider（family / s3 / iam / eks） | 2.8.1 |
+| function-go-templating（Composition版のみ） | 0.13.0、[OCI digest固定](platform/composition/function.yaml) |
 | EKS | 1.36（パッチとplatformVersionは実環境で記録） |
 | kindのKubernetes | 1.36.4、digest固定 |
 | Go | 1.27.1、ビルダーイメージdigest固定 |
 | Helm / eksctl / kind | 3.22.0 / 0.230.0 / 0.33.0 |
 
-一覧は [versions.env](versions.env)、Helmパッケージのハッシュは [charts.sha256](charts.sha256)。
+基本の一覧は [versions.env](versions.env)、Helmパッケージのハッシュは [charts.sha256](charts.sha256)。
 AWS SDKは `app/go.mod` / `app/go.sum`、CRDはProvider 2.8.1のスナップショットとSHA256で固定します。
 EKSアドオンは初回作成時に1.36対応版を解決して `.local/addons.json` に保存し、再実行で再利用します。
 AWSが管理するEKSパッチやAMIを、永久に固定するという意味ではありません。
@@ -95,12 +98,14 @@ export PATH="$PWD/.local/bin:$PATH"
 ```bash
 make check test     # 静的検査、単体テスト、race detector
 make graph          # kind + 実KRO + 実CRD。AWSのstatusのみ模擬
+make composition    # kind + 実Crossplane + 実Function。AWSのstatusのみ模擬
 make cluster        # EKS、VPC、ノード、Pod Identity Agent等
 make bootstrap      # Provider用IAM、権限境界、Pod Identity、ECR
-make platform       # KRO、Crossplane、6種類のMR、RBAC
+make platform       # COMPOSERに応じた定義、Crossplane、6種類のMR、RBAC
 make image          # ECRへpushし、digestを保存
 make demo           # 開発者ServiceAccountとしてStorageAppを作成
 make verify         # HTTPバイナリ往復・404・RBAC
+make verify-api     # storageId不変、replicas範囲、実1→2→1スケール
 make verify-iam     # IAMシミュレーターで権限境界を評価
 make failure        # 一時的なDeny→Ready=False→権限復旧
 make retention      # アプリ削除→S3保持→再接続→元データをHTTP GET
@@ -143,6 +148,7 @@ readiness probeはS3 APIリクエストを発生させます。障害時に一�
 - Pod Identityの信頼条件をクラスタARN、Namespace、ServiceAccountに限定。
 - Association直後の注入遅延に備え、アプリのIPv4用認証環境変数と専用トークン投影を明示。
 - KROのRBACはaggregationで必要な型だけ追加。開発者はMRやConfigMapを書き換えられない。
+- Crossplane本体は標準chart由来のクラスタ全体の権限を持つ。開発者用RBACとは別で、[IAM・認証レビュー](docs/security-review.md#composition版のrbac) に記録。
 - S3の公開ブロックとAES256暗号化も、アプリ削除時に保持。
 - アプリは非root、read-only filesystem、capabilitiesなし。
 
