@@ -11,9 +11,9 @@ case "${stage}" in ready|failure|recovered|retained|reconnected) ;; *) fail 'Unk
 mkdir -p "${REPO_DIR}/.local/evidence"
 bucket="idplab-${AWS_ACCOUNT_ID}-${LAB_ID}-demo"
 {
-  printf 'EKS IDP LAB | %s | %s\n' "${stage}" "$(date -u +%FT%TZ)"
+  printf 'EKS IDP LAB | %s | %s | %s\n' "${COMPOSER}" "${stage}" "$(date -u +%FT%TZ)"
   printf '\nStorageApp (kubectl get storageapps -n idp-lab, selected columns)\n'
-  kubectl -n idp-lab get storageapps.platform.example.com -o 'custom-columns=NAME:.metadata.name,STATE:.status.state,READY:.status.conditions[?(@.type=="Ready")].status,REPLICAS:.status.availableReplicas'
+  kubectl -n idp-lab get storageapps.platform.example.com -o 'custom-columns=NAME:.metadata.name,READY:.status.conditions[?(@.type=="Ready")].status,REPLICAS:.status.availableReplicas'
   printf '\n$ kubectl get deployment storage-demo -n idp-lab\n'
   kubectl -n idp-lab get deployment storage-demo --ignore-not-found
   printf '\nManaged resources (six kubectl get queries; type / Ready / Synced)\n'

@@ -29,7 +29,7 @@ def render(source: Path) -> Path:
     title = html.escape(source.stem)
     target = source.with_suffix(".html")
     target.write_text(
-        "<!doctype html><html lang='ja'><meta charset='utf-8'>"
+        "<!doctype html><html lang='en'><meta charset='utf-8'>"
         f"<title>EKS IDP Lab — {title}</title>"
         "<style>body{margin:0;background:#edf2f7;color:#182435;"
         "font-family:system-ui,sans-serif}main{margin:32px auto;padding:32px;"
@@ -41,14 +41,15 @@ def render(source: Path) -> Path:
         "font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;"
         "white-space:pre-wrap;overflow-wrap:anywhere;tab-size:8}"
         "footer{margin-top:20px}</style><main>"
-        "<div class='label'>KRO + CROSSPLANE + EKS</div>"
-        f"<h1>実環境の検証記録 · {title}</h1>"
-        "<p>AWS上で実行したCLI出力の保存記録です。"
-        "アカウントIDは ACCOUNT_ID に置換しています。</p>"
+        "<div class='label'>EKS IDP LAB · CAPTURED CLI OUTPUT</div>"
+        f"<h1>Live AWS validation · {title}</h1>"
+        "<p>Saved CLI output from an actual AWS validation run. "
+        "AWS account IDs have been replaced with ACCOUNT_ID.</p>"
         f"<pre>{html.escape(text)}</pre>"
         f"<footer>Source: {html.escape(source.name)} · "
         "suzuki0430/kro-crossplane-eks-idp-lab<br>"
-        "この画面は保存済みのCLI出力を表示したものです。</footer></main></html>",
+        "This page displays saved CLI output; it is not the AWS console."
+        "</footer></main></html>",
         encoding="utf-8",
     )
     return target

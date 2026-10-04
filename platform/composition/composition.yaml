@@ -1,0 +1,373 @@
+# A single Go-templating Function composes native Kubernetes resources and AWS MRs.
+# Initial creation is gated explicitly; once created, resources stay in desired state
+# during upstream failures. Crossplane garbage collection governs deletion order.
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: storage-app
+spec:
+  compositeTypeRef:
+    apiVersion: platform.example.com/v1alpha1
+    kind: StorageApp
+  mode: Pipeline
+  pipeline:
+    - step: render-storage-app
+      functionRef:
+        name: function-go-templating
+      requirements:
+        requiredResources:
+          - requirementName: platform
+            apiVersion: v1
+            kind: ConfigMap
+            name: storage-platform
+            namespace: idp-lab
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{- $xr := .observed.composite.resource -}}
+            {{- $namespace := $xr.metadata.namespace -}}
+            {{- $replicas := int $xr.spec.replicas -}}
+            {{- $name := printf "storage-%s" $xr.spec.storageId -}}
+            {{- $extra := .requiredResources | default .extraResources | default dict -}}
+            {{- $items := (index $extra "platform").items | default list -}}
+            {{- if ne (len $items) 1 }}{{ fail "Expected one storage-platform ConfigMap; refusing to drop desired resources" }}{{ end -}}
+            {{- $config := (index $items 0).resource.data -}}
+            {{- $bucketName := printf "%s%s" $config.bucketPrefix $xr.spec.storageId -}}
+            {{- $roleName := printf "idplab-%s-%s" $config.labId $xr.spec.storageId -}}
+            {{- $ready := dict -}}
+            {{- $messages := dict -}}
+            {{- $seen := dict -}}
+            {{- range $id := list "bucket" "publicAccess" "encryption" "role" "rolePolicy" "association" "serviceAccount" "deployment" "service" -}}
+              {{- $r := getComposedResource $ $id | default dict -}}
+              {{- $_ := set $seen $id $r -}}
+              {{- $available := false -}}
+              {{- $synced := false -}}
+              {{- $message := "" -}}
+              {{- range $c := dig "status" "conditions" (list) $r -}}
+                {{- if eq $c.type "Ready" }}{{ $available = eq $c.status "True" }}{{ end -}}
+                {{- if eq $c.type "Synced" }}{{ $synced = eq $c.status "True" }}{{ $message = $c.message | default "" }}{{ end -}}
+              {{- end -}}
+              {{- $_ := set $ready $id (and $available $synced) -}}
+              {{- $_ := set $messages $id $message -}}
+            {{- end -}}
+            {{- $role := index $seen "role" -}}
+            {{- $roleArn := dig "status" "atProvider" "arn" "" $role -}}
+            {{- $association := index $seen "association" -}}
+            {{- $associationId := dig "status" "atProvider" "associationId" "" $association -}}
+            {{- $deployment := index $seen "deployment" -}}
+            {{- $available := int (dig "status" "availableReplicas" 0 $deployment) -}}
+            {{- $deploymentReady := and (not (empty $deployment)) (eq $available $replicas) (eq (int (dig "status" "updatedReplicas" 0 $deployment)) $replicas) (eq (int (dig "status" "observedGeneration" 0 $deployment)) (int (dig "metadata" "generation" -1 $deployment))) -}}
+            {{- $_ := set $ready "deployment" $deploymentReady -}}
+            {{- $_ := set $ready "serviceAccount" (not (empty (index $seen "serviceAccount"))) -}}
+            {{- $_ := set $ready "service" (not (empty (index $seen "service"))) -}}
+            {{- $allReady := true -}}
+            {{- range $value := $ready }}{{ if not $value }}{{ $allReady = false }}{{ end }}{{ end -}}
+            # Explicit XR readiness prevents a partially rendered graph from becoming Ready.
+            ---
+            apiVersion: platform.example.com/v1alpha1
+            kind: StorageApp
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/ready: {{ ternary "True" "False" $allReady | quote }}
+            status:
+              bucketName: {{ $bucketName | quote }}
+              endpoint: {{ printf "http://%s.%s.svc.cluster.local" $name $namespace | quote }}
+              availableReplicas: {{ $available }}
+              storageMessage: {{ index $messages "bucket" | quote }}
+              identityMessage: {{ index $messages "role" | quote }}
+              associationMessage: {{ index $messages "association" | quote }}
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: Bucket
+            metadata:
+              name: storage-{{ $xr.spec.storageId }}
+              annotations:
+                crossplane.io/external-name: {{ $config.bucketPrefix }}{{ $xr.spec.storageId }}
+                gotemplating.fn.crossplane.io/composition-resource-name: bucket
+                gotemplating.fn.crossplane.io/ready: {{ ternary "True" "False" (index $ready "bucket") | quote }}
+              namespace: '{{ $namespace }}'
+            spec:
+              managementPolicies:
+              - Observe
+              - Create
+              - Update
+              - LateInitialize
+              providerConfigRef:
+                name: aws
+                kind: ProviderConfig
+              forProvider:
+                region: {{ $config.region }}
+                forceDestroy: false
+                tags:
+                  ManagedBy: kro-crossplane-idp-lab
+                  LabId: {{ $config.labId }}
+                  StorageId: {{ $xr.spec.storageId }}
+            {{- if or (not (empty (index $seen "publicAccess"))) (index $ready "bucket") }}
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: BucketPublicAccessBlock
+            metadata:
+              name: storage-{{ $xr.spec.storageId }}
+              namespace: '{{ $namespace }}'
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: publicAccess
+                gotemplating.fn.crossplane.io/ready: {{ ternary "True" "False" (index $ready "publicAccess") | quote }}
+            spec:
+              managementPolicies:
+              - Observe
+              - Create
+              - Update
+              - LateInitialize
+              providerConfigRef:
+                name: aws
+                kind: ProviderConfig
+              forProvider:
+                region: {{ $config.region }}
+                bucket: {{ $bucketName }}
+                blockPublicAcls: true
+                blockPublicPolicy: true
+                ignorePublicAcls: true
+                restrictPublicBuckets: true
+            {{- end }}
+            {{- if or (not (empty (index $seen "encryption"))) (index $ready "bucket") }}
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: BucketServerSideEncryptionConfiguration
+            metadata:
+              name: storage-{{ $xr.spec.storageId }}
+              namespace: '{{ $namespace }}'
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: encryption
+                gotemplating.fn.crossplane.io/ready: {{ ternary "True" "False" (index $ready "encryption") | quote }}
+            spec:
+              managementPolicies:
+              - Observe
+              - Create
+              - Update
+              - LateInitialize
+              providerConfigRef:
+                name: aws
+                kind: ProviderConfig
+              forProvider:
+                region: {{ $config.region }}
+                bucket: {{ $bucketName }}
+                rule:
+                - applyServerSideEncryptionByDefault:
+                    sseAlgorithm: AES256
+            {{- end }}
+            ---
+            apiVersion: v1
+            kind: ServiceAccount
+            metadata:
+              name: storage-{{ $xr.spec.storageId }}
+              namespace: '{{ $namespace }}'
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: serviceAccount
+                gotemplating.fn.crossplane.io/ready: {{ ternary "True" "False" (index $ready "serviceAccount") | quote }}
+            automountServiceAccountToken: false
+            ---
+            apiVersion: iam.aws.m.upbound.io/v1beta1
+            kind: Role
+            metadata:
+              name: storage-{{ $xr.spec.storageId }}
+              annotations:
+                crossplane.io/external-name: idplab-{{ $config.labId }}-{{ $xr.spec.storageId }}
+                gotemplating.fn.crossplane.io/composition-resource-name: role
+                gotemplating.fn.crossplane.io/ready: {{ ternary "True" "False" (index $ready "role") | quote }}
+              namespace: '{{ $namespace }}'
+            spec:
+              managementPolicies:
+              - '*'
+              providerConfigRef:
+                name: aws
+                kind: ProviderConfig
+              forProvider:
+                path: /idplab/{{ $config.labId }}/workloads/
+                permissionsBoundary: {{ $config.boundaryArn }}
+                assumeRolePolicy: |
+                  {"Version":"2012-10-17","Statement":[{
+                    "Effect":"Allow","Principal":{"Service":"pods.eks.amazonaws.com"},
+                    "Action":["sts:AssumeRole","sts:TagSession"],
+                    "Condition":{"StringEquals":{
+                      "aws:RequestTag/eks-cluster-arn":"{{ $config.clusterArn }}",
+                      "aws:RequestTag/kubernetes-namespace":"{{ $namespace }}",
+                      "aws:RequestTag/kubernetes-service-account":"{{ $name }}"
+                    }}
+                  }]}
+                tags:
+                  ManagedBy: kro-crossplane-idp-lab
+                  LabId: {{ $config.labId }}
+            {{- if or (not (empty (index $seen "rolePolicy"))) (and (index $ready "bucket") (index $ready "role")) }}
+            ---
+            apiVersion: iam.aws.m.upbound.io/v1beta1
+            kind: RolePolicy
+            metadata:
+              name: storage-{{ $xr.spec.storageId }}
+              namespace: '{{ $namespace }}'
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: rolePolicy
+                gotemplating.fn.crossplane.io/ready: {{ ternary "True" "False" (index $ready "rolePolicy") | quote }}
+            spec:
+              managementPolicies:
+              - '*'
+              providerConfigRef:
+                name: aws
+                kind: ProviderConfig
+              forProvider:
+                role: {{ $roleName }}
+                policy: |
+                  {"Version":"2012-10-17","Statement":[
+                    {"Effect":"Allow","Action":["s3:GetObject","s3:PutObject"],
+                     "Resource":["arn:aws:s3:::{{ $bucketName }}/uploads/*",
+                                 "arn:aws:s3:::{{ $bucketName }}/_health/*"]},
+                    {"Effect":"Allow","Action":"s3:DeleteObject",
+                     "Resource":"arn:aws:s3:::{{ $bucketName }}/_health/*"},
+                    {"Effect":"Allow","Action":"s3:ListBucket",
+                     "Resource":"arn:aws:s3:::{{ $bucketName }}"}
+                  ]}
+            {{- end }}
+            {{- if or (not (empty (index $seen "association"))) (and (index $ready "rolePolicy") (index $ready "role") (ne $roleArn "")) }}
+            ---
+            apiVersion: eks.aws.m.upbound.io/v1beta1
+            kind: PodIdentityAssociation
+            metadata:
+              name: storage-{{ $xr.spec.storageId }}
+              annotations:
+                platform.example.com/policy: {{ $name }}
+                gotemplating.fn.crossplane.io/composition-resource-name: association
+                gotemplating.fn.crossplane.io/ready: {{ ternary "True" "False" (index $ready "association") | quote }}
+              namespace: '{{ $namespace }}'
+            spec:
+              managementPolicies:
+              - '*'
+              providerConfigRef:
+                name: aws
+                kind: ProviderConfig
+              forProvider:
+                region: {{ $config.region }}
+                clusterName: {{ $config.clusterName }}
+                namespace: {{ $namespace }}
+                serviceAccount: {{ $name }}
+                roleArn: {{ $roleArn }}
+                disableSessionTags: false
+                tags:
+                  ManagedBy: kro-crossplane-idp-lab
+                  LabId: {{ $config.labId }}
+            {{- end }}
+            {{- if or (not (empty (index $seen "deployment"))) (and (index $ready "association") (index $ready "publicAccess") (index $ready "encryption") (ne $associationId "")) }}
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: storage-{{ $xr.spec.storageId }}
+              namespace: '{{ $namespace }}'
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: deployment
+                gotemplating.fn.crossplane.io/ready: {{ ternary "True" "False" (index $ready "deployment") | quote }}
+            spec:
+              replicas: {{ $replicas }}
+              progressDeadlineSeconds: 180
+              selector:
+                matchLabels:
+                  app.kubernetes.io/name: storage-{{ $xr.spec.storageId }}
+              template:
+                metadata:
+                  labels:
+                    app.kubernetes.io/name: storage-{{ $xr.spec.storageId }}
+                  annotations:
+                    platform.example.com/association: {{ $associationId }}
+                    platform.example.com/public-access: {{ $name }}
+                    platform.example.com/encryption: {{ $name }}
+                spec:
+                  serviceAccountName: {{ $name }}
+                  automountServiceAccountToken: false
+                  terminationGracePeriodSeconds: 15
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 65532
+                    runAsGroup: 65532
+                    seccompProfile:
+                      type: RuntimeDefault
+                  containers:
+                  - name: api
+                    image: {{ $xr.spec.image | quote }}
+                    imagePullPolicy: IfNotPresent
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    env:
+                    - name: AWS_REGION
+                      value: {{ $config.region }}
+                    - name: S3_BUCKET
+                      value: {{ $bucketName }}
+                    - name: AWS_EC2_METADATA_DISABLED
+                      value: 'true'
+                    - name: AWS_CONTAINER_CREDENTIALS_FULL_URI
+                      value: http://169.254.170.23/v1/credentials
+                    - name: AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE
+                      value: /var/run/secrets/pods.eks.amazonaws.com/serviceaccount/eks-pod-identity-token
+                    - name: HOSTNAME
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: metadata.name
+                    volumeMounts:
+                    - name: eks-pod-identity-token
+                      mountPath: /var/run/secrets/pods.eks.amazonaws.com/serviceaccount
+                      readOnly: true
+                    readinessProbe:
+                      httpGet:
+                        path: /readyz
+                        port: http
+                      periodSeconds: 10
+                      timeoutSeconds: 5
+                      failureThreshold: 2
+                    livenessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: http
+                      periodSeconds: 20
+                      timeoutSeconds: 2
+                    resources:
+                      requests:
+                        cpu: 50m
+                        memory: 64Mi
+                      limits:
+                        cpu: 500m
+                        memory: 128Mi
+                    securityContext:
+                      readOnlyRootFilesystem: true
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                        drop:
+                        - ALL
+                  volumes:
+                  - name: eks-pod-identity-token
+                    projected:
+                      defaultMode: 420
+                      sources:
+                      - serviceAccountToken:
+                          audience: pods.eks.amazonaws.com
+                          expirationSeconds: 86400
+                          path: eks-pod-identity-token
+            {{- end }}
+            {{- if or (not (empty (index $seen "service"))) (not (empty $deployment)) }}
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: storage-{{ $xr.spec.storageId }}
+              namespace: '{{ $namespace }}'
+              annotations:
+                gotemplating.fn.crossplane.io/composition-resource-name: service
+                gotemplating.fn.crossplane.io/ready: {{ ternary "True" "False" (index $ready "service") | quote }}
+            spec:
+              type: ClusterIP
+              selector:
+                app.kubernetes.io/name: storage-{{ $xr.spec.storageId }}
+              ports:
+              - port: 80
+                targetPort: http
+            {{- end }}

@@ -8,6 +8,7 @@ assert_lab_cluster
 [[ -f "${REPO_DIR}/.local/probe.bin" ]] || fail 'Run scripts/verify.sh first.'
 bucket="idplab-${AWS_ACCOUNT_ID}-${LAB_ID}-demo"
 kubectl -n idp-lab delete storageapp/demo --wait=true --timeout=600s
+wait_demo_resources_deleted
 aws s3api get-object --bucket "${bucket}" --key uploads/probe.bin "${REPO_DIR}/.local/retained.bin" >/dev/null
 cmp "${REPO_DIR}/.local/probe.bin" "${REPO_DIR}/.local/retained.bin"
 aws s3api get-public-access-block --bucket "${bucket}" --output json |
