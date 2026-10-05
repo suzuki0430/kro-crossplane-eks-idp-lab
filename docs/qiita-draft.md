@@ -191,7 +191,13 @@ spec:
 
 ## KROを外して、Compositionだけでも試した
 
-ここまでだと「KROでもできた」としか分からないので、KROを入れないEKSも作りました。今度はCrossplaneのXRDでStorageAppのAPIを定義し、CompositionからGoテンプレートのFunctionを呼びます。DeploymentなどはCrossplane v2が直接扱えるため、provider-kubernetesも使っていません。
+ここまでだと「KROでもできた」としか分からないので、KROを入れないEKSも作りました。今度はCrossplaneのXRDでStorageAppのAPIを定義し、Compositionを使って必要なリソースを作ります。
+
+Compositionでは、リソースの定義を組み立てる処理を**Function**というプログラムに任せます。FunctionはStorageAppの入力や既存リソースの状態を受け取り、Crossplaneに作成・維持してほしいリソースの一覧を返します。返されたDeploymentやMRをCrossplaneが作成・更新し、MRに対応するAWSリソースはProviderが操作します。[Composition Functionの説明](https://docs.crossplane.io/latest/composition/compositions/#how-composition-functions-work)
+
+今回は公開されている `function-go-templating` を使い、その入力となるGoテンプレートを書きました。このFunctionはEKS内のPodとして動き、テンプレートからDeploymentやS3のMRなどの定義を生成します。Compositionには、呼び出すFunctionと渡すテンプレートを設定します。
+
+DeploymentなどはCrossplane v2が直接扱えるため、provider-kubernetesも使っていません。
 
 Crossplane 2.4.2、AWS Provider 2.8.1、アプリのイメージdigestは揃えました。単独版で追加したFunctionは `function-go-templating v0.13.0` です。StorageAppに渡す `storageId`、`image`、`replicas` も同じ形にしています。
 
@@ -215,9 +221,9 @@ Crossplane 2.4.2、AWS Provider 2.8.1、アプリのイメージdigestは揃え�
 
 KROでは、リソース間の参照から依存関係を組み立ててくれます。今回のGoテンプレート版では、「BucketとRoleがReadyならRolePolicyを出す」「AssociationとS3の保護設定がReadyならDeploymentを出す」と条件を書きました。
 
-ただし、上流のReadyだけで出力を切り替えると困ります。作成済みのDeploymentがFunctionの出力から消えると、Crossplaneはそれを削除対象として扱うためです。
+この一覧には、作成済みで維持したいリソースも毎回含める必要があります。例えば「AssociationがReadyのときだけDeploymentを一覧に入れる」と書くと、後からAssociationがReadyでなくなったときにDeploymentが一覧から消えます。Crossplaneはこれを「Deploymentは不要になった」と扱うため、作成済みのDeploymentを削除してしまいます。
 
-そこで、**初回は依存先を待ち、すでに作ったリソースは出力に残す**ようにしました。kind上でBucketのSyncedをFalseに戻し、DeploymentのUIDが変わらないことも確認しています。この試験はAWSのstatusを模擬したもので、実AWSの障害試験とは分けています。
+そこで、**初回は依存先を待ち、すでに作ったリソースは一覧に残す**ようにしました。kind上でBucketのSyncedをFalseに戻し、DeploymentのUIDが変わらないことも確認しています。この試験はAWSのstatusを模擬したもので、実AWSの障害試験とは分けています。
 
 また、まだ一部のリソースしか出力していない段階でReadyにならないよう、9リソース全体の条件をFunctionから返しました。KROの `readyWhen` に相当する判断を、こちらにも用意した形です。
 
@@ -282,18 +288,6 @@ AWSはAssociationの反映が結果整合的であると説明しています。
 これで認証情報を取得するための設定は最初からPodに入り、Associationの反映をSDKとreadinessの再試行で待てるようにしました。修正後の再作成では、手動でPodを作り直さずに元データを読めました。
 
 この設定は今回のIPv4構成向けです。Agentや構成を変えるときには、このテンプレートも確認し直します。
-
-## 最後にEKSも片付ける
-
-cleanupでは、先にStorageAppとMRを削除し終えてから、Provider用のIAMやEKSを消します。削除処理の途中で、その処理をするコントローラーや権限を先に消さないためです。
-
-KRO版・Composition版とも、検証後はEKS、VPC、ネットワークインターフェース、EBS、関連IAM、ECRを削除しました。EC2もterminatedになっています。S3はラボごとに残し、それぞれの39バイトの `uploads/probe.bin` をEKS削除後に読み出して、元データと比べました。
-
-*以下のAWSコンソール画像は10月4日に英語表示で撮り直しました。S3の画像は10月2日のKRO版で残したファイル、EKS一覧は両方の検証環境を片付けた後の状態です。*
-
-![実AWSコンソール：S3に残るuploads/probe.bin](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/screenshots/07-s3-object-retained.jpg)
-
-![実AWSコンソール：後片付け後の東京リージョンのEKS一覧は0件](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/screenshots/08-eks-deleted.jpg)
 
 ## 自社で使うなら、次に何を決める？
 
