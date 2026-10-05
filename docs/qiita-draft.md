@@ -1,6 +1,6 @@
 # KROとCrossplaneは両方いる？ EKSでS3付きアプリを作って比べてみた
 
-> 編集用の下書きです。「追記メモ」は自分の感想を書き足す場所として残しています。公開するときに置き換えるか、削除してください。
+> 編集用の下書きです。
 
 この前、[Cloud Native Platform Engineering Japan Meetup #3 — Platform Engineering Kaigi 前夜祭スペシャル](https://ocgroups.dev/cncf/group/bqd97by/event/c3zf287) で登壇したのですが、もう一つのHENNGE様の発表が「Building elegant platform with KRO」でした。
 
@@ -229,38 +229,22 @@ KROでは、リソース間の参照から依存関係を組み立ててくれ�
 
 また、まだ一部のリソースしか出力していない段階でReadyにならないよう、9リソース全体の条件をFunctionから返しました。KROの `readyWhen` に相当する判断を、こちらにも用意した形です。
 
-### S3を残せるのは、どちらもProvider側の設定
+今回比べたComposition版は、Goテンプレートを使った実装の一例です。Composition版では`WatchCircuitOpen`の表示やスケール変更の反映待ちもありましたが、原因はまだ調べきれていません。別の日・別クラスタで試したため、性能は比較していません。[比較の記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/composition-comparison.md)に条件とログを残しています。
 
-Composition版でも、StorageAppを消したあとに同じstorageIdで作り直し、新しいPodから元ファイルを読めました。再アップロードはしていません。
+IAMやPod Identityの設定でつまずいた点は、[AWSでの検証記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/verification.md#実awsで見つかった3点と修正)にまとめました。
+
+### Composition版でもS3は残った
+
+Composition版でも、StorageAppを削除したあとにS3のファイルが残りました。同じstorageIdで作り直すと、再アップロードせずに元のファイルを取得できました。
+
+S3関連のMRでは、KRO併用版と同じく`managementPolicies`に`Delete`を入れていません。そのため、MRを削除してもProviderはAWS上のバケットや保護設定を削除しません。
 
 ![実CLI出力：Composition版でも、元データ・アプリ削除後・再接続後のSHA256が一致](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/screenshots/10-composition-reconnected.jpg)
 
-ここはKRO固有の機能ではなく、両方が同じMRの `managementPolicies` を使った結果です。ただし、削除順まで同じではありません。Composition版は所有関係とKubernetesのGCで子を片付けるため、スクリプト側でもMRの消滅を待っています。KROの依存グラフと同じ逆順削除を再現したわけではありません。
+## さいごに
 
-これで「このアプリを作るために両方必要か」には、必要ない、と答えられます。Crossplaneだけなら、独自APIの定義もリソースの組み立てもCrossplane側に揃えられます。ただし、今回のComposition版にはFunctionも必要です。KROを外した分だけ運用が楽になるかは、今回の検証では分かりません。
-
-一方、**今回のStorageAppの定義を読み、変更していくなら、KROありの方が扱いやすそうです。** リソース間のつながりは参照式で、待つ条件は `readyWhen` で追えます。Composition版では、初回に依存先を待つ処理や、作成済みのリソースを出力に残す処理まで自分で書く必要がありました。この分岐をテンプレートに書かずに済む点に、KROを足す利点がありそうです。
-
-これは主に、基盤側で定義を書く人にとっての違いです。アプリ開発者がStorageAppに値を入れてapplyする操作は、どちらでも同じです。また、GoテンプレートはCompositionの書き方の一例なので、別のFunctionを使う場合や、既存のCompositionを流用できる場合にも同じ評価になるとは限りません。長期的な保守のしやすさは、これから確かめたいところです。
-
-Composition版では `Responsive=False / WatchCircuitOpen` も観測し、スケール変更の反映に待ちがありました。最終的な反映は確認しましたが、原因の切り分けと運用時の評価は残っています。KRO併用版は10月2日、Composition版は10月4日の別クラスタでの検証なので、所要時間で性能を比べることもしていません。[実装と比較の記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/composition-comparison.md) に、条件と各段階のログをまとめました。
-
-IAM権限やPod Identityの設定でつまずいた点と対処は、[実AWSでの検証記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/verification.md#実awsで見つかった3点と修正) に残しています。
-
-## 自社で使うなら、次に何を決める？
-
-今回、StorageAppを1つ登録してアプリとS3を用意し、権限不足をReadyへ返し、削除後もデータを残して再接続するところまで試せました。
-
-ただ、これをそのまま社内に配ればIDPが完成、とはいきません。例えば今回の共有Namespaceでは他のStorageAppも編集でき、任意のイメージを指定できます。同じstorageIdを同時に使うことを止める仕組みもありません。
-
-自社で使う前に決めたいのは、こんなところです。
-
-- 誰がどのStorageAppを編集できるか。残したデータへ再接続できるのは誰か。
-- どのイメージを動かしてよいか。アプリにどこまでAWS権限を渡すか。
-- Readyで何を約束するか。使えないとき、開発者には何を見せるか。
-- データをいつまで残すか。完全削除やバックアップ、別クラスタへの復旧をどうするか。
-- 今回触ったRGDとCompositionのどちらをチームで保守したいか。更新や障害対応まで含めて試すには何が必要か。
-
-IAMシミュレーターでは、境界なしのロール作成や境界除去などが拒否されることも確認しました。ただ、別Namespaceや別ServiceAccountからのアクセスを、実AWS APIですべて試したわけではありません。確認したことと、まだ確認していないことは [権限のレビュー](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/security-review.md) に分けてあります。
-
-> **追記メモ③：** RGDの参照とCompositionの条件分岐、どちらが自分には読みやすかったか。自社ならどこから始めたいか、今回の比較を読んだ感想を足す。
+今回のアプリとS3は、Crossplaneだけでも作れました。\
+開発者がStorageAppをapplyする操作は、どちらも同じです。\
+違ったのは、基盤側で依存関係や待つ条件を書く部分でした。\
+今回の定義なら、参照と`readyWhen`で追えるKROの方が扱いやすそうです。\
+自社で使うなら、[権限の切り分け](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/security-review.md)やデータの扱いも詰めたいです。
