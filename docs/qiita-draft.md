@@ -219,15 +219,15 @@ Crossplane 2.4.2、AWS Provider 2.8.1、アプリのイメージdigestは揃え�
 
 ![実CLI出力：KROなしのComposition版で、6種類のMRとアプリがReadyになりHTTPの往復が成功](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/screenshots/09-composition-ready.jpg)
 
-### 違ったのは、待つ処理の書き方
+### 依存関係とReadyの条件を比べる
 
-KROでは、リソース間の参照から依存関係を組み立ててくれます。今回のComposition版では、「BucketとRoleがReadyならRolePolicyを出す」「AssociationとS3の保護設定がReadyならDeploymentを出す」と条件を書きました。
+KRO併用版では、リソース同士の参照で依存関係をつなぎ、`readyWhen`で準備完了の条件を書きました。例えばDeploymentからAssociationのIDを参照すると、KROがAssociationの準備を待ってDeploymentを作ります。
 
-この一覧には、作成済みで維持したいリソースも毎回含める必要があります。例えば「AssociationがReadyのときだけDeploymentを一覧に入れる」と書くと、後からAssociationがReadyでなくなったときにDeploymentが一覧から消えます。Crossplaneはこれを「Deploymentは不要になった」と扱うため、作成済みのDeploymentを削除してしまいます。
+Composition版では、Goテンプレートに「AssociationとS3の保護設定がReadyならDeploymentを一覧に加える」と書きました。初回の作成順を、この条件分岐で制御しています。
 
-そこで、**初回は依存先を待ち、すでに作ったリソースは一覧に残す**ようにしました。kind上でBucketのSyncedをFalseに戻し、DeploymentのUIDが変わらないことも確認しています。この試験はAWSのstatusを模擬したもので、実AWSの障害試験とは分けています。
+作成後の扱いも必要でした。Functionが返す一覧からDeploymentが消えるとCrossplaneが削除してしまうため、依存先が一時的にReadyでなくなっても、作成済みのDeploymentは一覧に残します。
 
-また、まだ一部のリソースしか出力していない段階でReadyにならないよう、9リソース全体の条件をFunctionから返しました。KROの `readyWhen` に相当する判断を、こちらにも用意した形です。
+StorageApp全体をReadyにする条件もFunctionに書きました。必要な9リソースが揃っているか、MRがReady/Synced=Trueか、Deploymentが指定したレプリカ数で稼働しているかを確認します。
 
 今回比べたComposition版は、Goテンプレートを使った実装の一例です。Composition版では`WatchCircuitOpen`の表示やスケール変更の反映待ちもありましたが、原因はまだ調べきれていません。別の日・別クラスタで試したため、性能は比較していません。[比較の記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/composition-comparison.md)に条件とログを残しています。
 
