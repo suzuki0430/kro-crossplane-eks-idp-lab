@@ -111,7 +111,7 @@ MRは `Ready=True` と `Synced=True` の両方を待ちます。Deploymentは、
     - ${deployment.status.?availableReplicas.orValue(0) == deployment.spec.replicas}
 ```
 
-## アプリからS3へ保存して読んでみる
+## アプリ経由でS3の読み書きを確認する
 
 アプリはGoで作った小さなHTTP APIです。
 
