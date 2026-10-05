@@ -15,7 +15,9 @@ KROについては7月のKubeConで関連セッションを聞いてから気に
 
 https://github.com/suzuki0430/kro-crossplane-eks-idp-lab
 
-> **追記メモ①：** HENNGEの発表やKubeConのセッションで特に気になった点、自社の状況と重なった点があれば、ここに1〜2文足す。
+HENNGEの発表では、Platform Teamがリソースのひな形となるRGDを用意し、開発者は小さなYAMLを1つ書くだけでアプリとインフラを作る構成が紹介されていました。Kubernetesの細かい知識を開発者に求めない、という方針です。
+
+Q&AではCrossplane Compositionも試したうえで、定義のシンプルさを理由にKROを選んだと説明されていました。普通のKubernetesのYAMLに近い感覚で書ける、という話です。今回も、同じアプリを作れるかだけでなく、基盤側で定義を書いたり直したりするときに何が違うのかを見ていきます。
 
 ## KROとCrossplaneは両方必要か
 
