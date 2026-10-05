@@ -193,19 +193,21 @@ spec:
 
 ここまでだと「KROでもできた」としか分からないので、KROを入れないEKSも作りました。今度はCrossplaneのXRDでStorageAppのAPIを定義し、Compositionを使って必要なリソースを作ります。
 
+ここからは、KROを使わないこの構成を「Composition版」と呼び、先ほどの「KRO併用版」と比べます。
+
 Compositionでは、リソースの定義を組み立てる処理を**Function**というプログラムに任せます。FunctionはStorageAppの入力や既存リソースの状態を受け取り、Crossplaneに作成・維持してほしいリソースの一覧を返します。返されたDeploymentやMRをCrossplaneが作成・更新し、MRに対応するAWSリソースはProviderが操作します。[Composition Functionの説明](https://docs.crossplane.io/latest/composition/compositions/#how-composition-functions-work)
 
 今回は公開されている `function-go-templating` を使い、その入力となるGoテンプレートを書きました。このFunctionはEKS内のPodとして動き、テンプレートからDeploymentやS3のMRなどの定義を生成します。Compositionには、呼び出すFunctionと渡すテンプレートを設定します。
 
 DeploymentなどはCrossplane v2が直接扱えるため、provider-kubernetesも使っていません。
 
-Crossplane 2.4.2、AWS Provider 2.8.1、アプリのイメージdigestは揃えました。単独版で追加したFunctionは `function-go-templating v0.13.0` です。StorageAppに渡す `storageId`、`image`、`replicas` も同じ形にしています。
+Crossplane 2.4.2、AWS Provider 2.8.1、アプリのイメージdigestは揃えました。Composition版で追加したFunctionは `function-go-templating v0.13.0` です。StorageAppに渡す `storageId`、`image`、`replicas` も同じ形にしています。
 
 ![比較図：同じStorageAppの入力から、KROのRGDとCrossplaneのCompositionでリソースを作る](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/diagrams/04-comparison.png)
 
 結果として、今回試した動作はどちらでも実現できました。
 
-| 確認したこと | KRO併用版 | Composition単独版 |
+| 確認したこと | KRO併用版 | Composition版 |
 |---|---|---|
 | StorageAppからアプリ・S3・IAMを作る | 成功 | 成功 |
 | HTTPでファイルをPUT / GETし、ハッシュを比較 | 一致 | 一致 |
@@ -219,7 +221,7 @@ Crossplane 2.4.2、AWS Provider 2.8.1、アプリのイメージdigestは揃え�
 
 ### 違ったのは、待つ処理の書き方
 
-KROでは、リソース間の参照から依存関係を組み立ててくれます。今回のGoテンプレート版では、「BucketとRoleがReadyならRolePolicyを出す」「AssociationとS3の保護設定がReadyならDeploymentを出す」と条件を書きました。
+KROでは、リソース間の参照から依存関係を組み立ててくれます。今回のComposition版では、「BucketとRoleがReadyならRolePolicyを出す」「AssociationとS3の保護設定がReadyならDeploymentを出す」と条件を書きました。
 
 この一覧には、作成済みで維持したいリソースも毎回含める必要があります。例えば「AssociationがReadyのときだけDeploymentを一覧に入れる」と書くと、後からAssociationがReadyでなくなったときにDeploymentが一覧から消えます。Crossplaneはこれを「Deploymentは不要になった」と扱うため、作成済みのDeploymentを削除してしまいます。
 
@@ -229,65 +231,21 @@ KROでは、リソース間の参照から依存関係を組み立ててくれ�
 
 ### S3を残せるのは、どちらもProvider側の設定
 
-単独版でも、StorageAppを消したあとに同じstorageIdで作り直し、新しいPodから元ファイルを読めました。再アップロードはしていません。
+Composition版でも、StorageAppを消したあとに同じstorageIdで作り直し、新しいPodから元ファイルを読めました。再アップロードはしていません。
 
 ![実CLI出力：Composition版でも、元データ・アプリ削除後・再接続後のSHA256が一致](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/screenshots/10-composition-reconnected.jpg)
 
-ここはKRO固有の機能ではなく、両方が同じMRの `managementPolicies` を使った結果です。ただし、削除順まで同じではありません。単独版は所有関係とKubernetesのGCで子を片付けるため、スクリプト側でもMRの消滅を待っています。KROの依存グラフと同じ逆順削除を再現したわけではありません。
+ここはKRO固有の機能ではなく、両方が同じMRの `managementPolicies` を使った結果です。ただし、削除順まで同じではありません。Composition版は所有関係とKubernetesのGCで子を片付けるため、スクリプト側でもMRの消滅を待っています。KROの依存グラフと同じ逆順削除を再現したわけではありません。
 
-これで「このアプリを作るために両方必要か」には、必要ない、と答えられます。Crossplaneだけなら、独自APIの定義もリソースの組み立てもCrossplane側に揃えられます。ただし、今回の単独版にはFunctionも必要です。KROを外した分だけ運用が楽になるかは、今回の検証では分かりません。
+これで「このアプリを作るために両方必要か」には、必要ない、と答えられます。Crossplaneだけなら、独自APIの定義もリソースの組み立てもCrossplane側に揃えられます。ただし、今回のComposition版にはFunctionも必要です。KROを外した分だけ運用が楽になるかは、今回の検証では分かりません。
 
-一方、**今回のStorageAppの定義を読み、変更していくなら、KROありの方が扱いやすそうです。** リソース間のつながりは参照式で、待つ条件は `readyWhen` で追えます。Goテンプレート版では、初回に依存先を待つ処理や、作成済みのリソースを出力に残す処理まで自分で書く必要がありました。この分岐をテンプレートに書かずに済む点に、KROを足す利点がありそうです。
+一方、**今回のStorageAppの定義を読み、変更していくなら、KROありの方が扱いやすそうです。** リソース間のつながりは参照式で、待つ条件は `readyWhen` で追えます。Composition版では、初回に依存先を待つ処理や、作成済みのリソースを出力に残す処理まで自分で書く必要がありました。この分岐をテンプレートに書かずに済む点に、KROを足す利点がありそうです。
 
 これは主に、基盤側で定義を書く人にとっての違いです。アプリ開発者がStorageAppに値を入れてapplyする操作は、どちらでも同じです。また、GoテンプレートはCompositionの書き方の一例なので、別のFunctionを使う場合や、既存のCompositionを流用できる場合にも同じ評価になるとは限りません。長期的な保守のしやすさは、これから確かめたいところです。
 
-単独版では `Responsive=False / WatchCircuitOpen` も観測し、スケール変更の反映に待ちがありました。最終的な反映は確認しましたが、原因の切り分けと運用時の評価は残っています。KRO版は10月2日、単独版は10月4日の別クラスタでの検証なので、所要時間で性能を比べることもしていません。[実装と比較の記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/composition-comparison.md) に、条件と各段階のログをまとめました。
+Composition版では `Responsive=False / WatchCircuitOpen` も観測し、スケール変更の反映に待ちがありました。最終的な反映は確認しましたが、原因の切り分けと運用時の評価は残っています。KRO併用版は10月2日、Composition版は10月4日の別クラスタでの検証なので、所要時間で性能を比べることもしていません。[実装と比較の記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/composition-comparison.md) に、条件と各段階のログをまとめました。
 
-## 実AWSに載せたら引っかかったところ
-
-以下は、最初のKRO併用版で引っかかった点です。修正したIAMとアプリの認証設定は、Composition版でもそのまま使っています。
-
-事前にはkind上でも確認しています。実際のKROとProviderのCRDを使いますが、AWS側のstatusは模擬するテストです。型や依存関係は確認できても、AWSの権限や反映タイミングは実環境で確かめる必要がありました。
-
-### IAMロールを作る前のGetRoleが403になった
-
-IAM Providerの権限をworkloadsパスに絞っていたところ、まだ存在しないロールを調べるGetRoleで止まりました。
-
-今回はラボ名のprefixで絞ったrootパスのARNにも、`iam:GetRole` だけを追加すると先に進みました。ロールの作成・更新・削除はworkloadsパスに限定したままです。作成時に指定のpermissions boundaryを付ける条件も残しています。
-
-GetRoleはRoleNameを入力に取るAPIです。[API仕様](https://docs.aws.amazon.com/IAM/latest/APIReference/API_GetRole.html) と [実際のエラー](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/49a3bae7e3c6198f3a15caefa5adbd2f41d5b658/docs/evidence/iam-observe-error.txt) を残しました。追加した読み取り権限では、同じラボ名のProviderロールのメタデータも読めるようになる点は、変更として記録しています。
-
-### Associationの作成にもGetRoleが必要だった
-
-こちらはEKS Provider側です。PassRoleを許可していても、Associationの作成で次のエラーになりました。
-
-```text
-Caller does not have permission to perform iam:GetRole
-```
-
-対象workloadsパスの `iam:GetRole` を、PassRoleとは別のStatementに追加して解消しました。PassRole用の `iam:PassedToService=pods.eks.amazonaws.com` という条件は、GetRoleへまとめて付けないようにしています。
-
-### AssociationがReadyでも、直後のPodに認証設定が入っていなかった
-
-Association作成直後のPodには、Pod Identity用の `AWS_CONTAINER_*` 環境変数と投影トークンが注入されていませんでした。同じテンプレートでPodを作り直すと注入され、Readyになりました。
-
-AWSはAssociationの反映が結果整合的であると説明しています。今回の動きはその説明と合いますが、AWS内部のどこで遅れていたかまでは特定していません。[Association作成APIの説明](https://docs.aws.amazon.com/eks/latest/APIReference/API_CreatePodIdentityAssociation.html)
-
-このラボでは、AWSが公開している認証用の環境変数とトークン投影をDeploymentに明示しました。
-
-```yaml
-# アプリコンテナのenvの抜粋
-- name: AWS_CONTAINER_CREDENTIALS_FULL_URI
-  value: http://169.254.170.23/v1/credentials
-- name: AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE
-  value: /var/run/secrets/pods.eks.amazonaws.com/serviceaccount/eks-pod-identity-token
-```
-
-トークンは `audience: pods.eks.amazonaws.com`、有効期間86400秒とし、読み取り専用でmountします。Kubernetes API用トークンの自動mountは無効のままです。[AWSのPod Identityの説明](https://docs.aws.amazon.com/eks/latest/userguide/pod-id-how-it-works.html) に形式を合わせています。
-
-これで認証情報を取得するための設定は最初からPodに入り、Associationの反映をSDKとreadinessの再試行で待てるようにしました。修正後の再作成では、手動でPodを作り直さずに元データを読めました。
-
-この設定は今回のIPv4構成向けです。Agentや構成を変えるときには、このテンプレートも確認し直します。
+IAM権限やPod Identityの設定でつまずいた点と対処は、[実AWSでの検証記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/verification.md#実awsで見つかった3点と修正) に残しています。
 
 ## 自社で使うなら、次に何を決める？
 
