@@ -210,9 +210,17 @@ Compositionでは、FunctionというプログラムがStorageAppの入力値や
 
 今回は公開されている `function-go-templating` を使い、DeploymentやMRの定義をGoテンプレートに書きました。このFunctionはEKS内のPodとして動きます。
 
-DeploymentなどはCrossplane v2が直接扱えるため、provider-kubernetesも使っていません。
+比較に使った主なバージョンは次のとおりです。アプリのイメージdigestと、StorageAppに渡す入力項目も揃えました。
 
-Crossplane 2.4.2、AWS Provider 2.8.1、アプリのイメージdigestは揃えました。Composition版で追加したFunctionは `function-go-templating v0.13.0` です。StorageAppに渡す `storageId`、`image`、`replicas` も同じ形にしています。
+| 項目 | KRO併用版 | Composition版 |
+| --- | --- | --- |
+| KRO | 0.9.4 | なし |
+| Crossplane | 2.4.2 | 2.4.2 |
+| AWS Provider | 2.8.1 | 2.8.1 |
+| EKS Kubernetes | 1.36.4 | 1.36.4 |
+| Function | なし | function-go-templating 0.13.0 |
+
+DeploymentなどはCrossplane v2が直接扱えるため、provider-kubernetesも使っていません。
 
 ![比較図：同じStorageAppの入力から、KROのRGDとCrossplaneのCompositionでリソースを作る](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/diagrams/04-comparison.png)
 
@@ -234,13 +242,59 @@ Crossplane 2.4.2、AWS Provider 2.8.1、アプリのイメージdigestは揃え�
 
 KRO併用版では、リソース同士の参照で依存関係をつなぎ、`readyWhen`で準備完了の条件を書きました。例えばDeploymentからAssociationのIDを参照すると、KROがAssociationの準備を待ってDeploymentを作ります。
 
+実際のRGDから、Associationを待つ条件とDeploymentからの参照を抜き出すとこうなります。Deployment本体などは省略しています。
+
+```yaml
+# platform/storage-app.yaml (excerpt)
+- id: association
+  readyWhen:
+    - ${association.status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')}
+    - ${association.status.conditions.exists(c, c.type == 'Synced' && c.status == 'True')}
+  # template omitted
+- id: deployment
+  template:
+    kind: Deployment
+    spec:
+      template:
+        metadata:
+          annotations:
+            platform.example.com/association: ${association.status.atProvider.associationId}
+            platform.example.com/public-access: ${publicAccess.metadata.name}
+            platform.example.com/encryption: ${encryption.metadata.name}
+```
+
+公開ブロックと暗号化も参照に含めています。KROがこの参照から作成順を決めるので、Deploymentを出力するための条件分岐は書いていません。
+
 Composition版では、Goテンプレートに「AssociationとS3の保護設定がReadyならDeploymentを一覧に加える」と書きました。初回の作成順を、この条件分岐で制御しています。
+
+こちらの該当箇所は次のとおりです。`$seen`は取得済みのリソース、`$ready`は各MRの`Ready=True`と`Synced=True`の確認結果を入れたものです。条件式を読みやすいように改行し、Deployment本体は省略しています。
+
+```gotemplate
+{{- if or
+    (not (empty (index $seen "deployment")))
+    (and
+        (index $ready "association")
+        (index $ready "publicAccess")
+        (index $ready "encryption")
+        (ne $associationId "")
+    )
+}}
+---
+apiVersion: apps/v1
+kind: Deployment
+# Deployment body omitted
+{{- end }}
+```
+
+`and`の側が初回の作成条件です。Association、公開ブロック、暗号化が準備できて、AssociationのIDも取得できたらDeploymentを出力します。`or`のもう片方は、すでにDeploymentが存在する場合です。
 
 作成後の扱いも必要でした。Functionが返す一覧からDeploymentが消えるとCrossplaneが削除してしまうため、依存先が一時的にReadyでなくなっても、作成済みのDeploymentは一覧に残します。
 
 StorageApp全体をReadyにする条件もFunctionに書きました。必要な9リソースが揃っているか、MRがReady/Synced=Trueか、Deploymentが指定したレプリカ数で稼働しているかを確認します。
 
-今回比べたComposition版は、Goテンプレートを使った実装の一例です。Composition版では`WatchCircuitOpen`の表示やスケール変更の反映待ちもありましたが、原因はまだ調べきれていません。別の日・別クラスタで試したため、性能は比較していません。[比較の記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/composition-comparison.md)に条件とログを残しています。
+この扱いはkind上のテストでも確認しました。作成後にBucketの`Synced`をFalseに戻しても、DeploymentのUIDは変わらず、StorageAppはReady=Falseになりました。AWSの障害を起こした試験ではなく、MRのstatusを変更して動きを確認したものです。
+
+全文は[RGD](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/platform/storage-app.yaml)と[Composition](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/platform/composition/composition.yaml)にあります。
 
 IAMやPod Identityの設定でつまずいた点は、[AWSでの検証記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/verification.md#実awsで見つかった3点と修正)にまとめました。
 
@@ -251,6 +305,22 @@ Composition版でも、StorageAppを削除したあとにS3のファイルが残
 S3関連のMRでは、KRO併用版と同じく`managementPolicies`に`Delete`を入れていません。そのため、MRを削除してもProviderはAWS上のバケットや保護設定を削除しません。
 
 ![実CLI出力：Composition版でも、元データ・アプリ削除後・再接続後のSHA256が一致](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/screenshots/10-composition-reconnected.jpg)
+
+### KROを足す手間に見合うか
+
+今回、開発者がStorageAppに指定する項目はどちらも同じでした。KROを併用する理由があるとすれば、基盤側で定義を読み書きしやすくするためです。
+
+このStorageAppだけを用意するなら、すでにCrossplaneを運用している環境ではCompositionにまとめる選択もありそうです。KROを足せば、そのコントローラーの更新や障害時の調査も必要になります。Composition版にもFunctionの更新や調査はあるので、今回の検証だけではどちらの運用が楽かまでは分かりません。
+
+定義を見比べると、今回のKRO併用版では、リソースごとの参照と`readyWhen`を読めば依存関係と準備完了の条件を追えます。Composition版では、`$ready`を計算する処理と、作成済みのリソースを出力に残す条件も合わせて読む必要があります。ここが、今回の定義でKROの方が扱いやすそうだと思った理由です。
+
+自社のIDPでDBやキューなども組み合わせるなら、同じ追加要件を両方の定義に入れ、直す場所やレビューのしやすさを比べたいです。その結果を見て、KROを運用する手間に見合うか考えるのがよさそうです。
+
+### 比較した範囲
+
+今回比べたのは、KROのRGDで書いた定義と、`function-go-templating`を使って書いた定義です。記述量や難しさについての感想も、この2つの実装についてのものです。
+
+KRO併用版は10月2日、Composition版は10月4日に別々のEKSで試したため、作成時間や反映速度は比較していません。大量のStorageApp、複数チームでの利用、アップグレードも未検証です。[比較の記録](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/composition-comparison.md)に実行条件とログを残しています。
 
 ## さいごに
 
