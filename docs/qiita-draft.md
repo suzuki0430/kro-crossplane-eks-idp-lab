@@ -35,7 +35,7 @@ Q&AではCrossplane Compositionも試したうえで、定義のシンプルさ�
 
 今回の入口は `StorageApp` というカスタムリソースです。開発者がこれを1つ作ると、KROが必要なKubernetesリソースを作ります。そのうちAWS向けのものを、ProviderがAWSへ反映します。
 
-![構成図：開発者のStorageAppをKROがKubernetesリソースとMRへ展開し、CrossplaneのAWS ProviderがAWSリソースを管理する](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/1c6671021a87992443426ad157cd0dc894fe1807/docs/diagrams/01-architecture.png)
+![構成図：開発者のStorageAppをKROがKubernetesリソースとMRへ展開し、CrossplaneのAWS ProviderがAWSリソースを管理する](https://raw.githubusercontent.com/suzuki0430/kro-crossplane-eks-idp-lab/fbed6cfe27578eba2957bef8b9e8d4325aea96cd/docs/diagrams/01-architecture.png)
 
 | 担当                      | 今回やってもらうこと                                                   |
 | ------------------------- | ---------------------------------------------------------------------- |
