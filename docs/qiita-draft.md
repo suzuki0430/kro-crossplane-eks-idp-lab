@@ -100,16 +100,27 @@ KRO側には`ResourceGraphDefinition`(RGD)を登録します。「StorageAppに�
 
 RGDでは、例えばAssociationがRoleのARNを参照し、DeploymentがAssociationのIDを参照します。この参照から、KROが依存関係を組み立てます。アプリ用ポリシーの準備も待つよう、AssociationのannotationにはRolePolicyへの参照を置きました。
 
-MRは `Ready=True` と `Synced=True` の両方を待ちます。Deploymentは、要求した数のレプリカが更新され、利用可能になるまで待つようにしました。
+各リソースを準備完了と判断する条件は、KROの`readyWhen`に書きます。
+
+S3やIAMのMRでは、Providerが「利用可能」と報告する`Ready=True`と、直近の同期処理が成功したことを示す`Synced=True`の両方を確認します。[MRの状態の説明](https://docs.crossplane.io/latest/managed-resources/managed-resources/#conditions)
+
+Deploymentでは、最新の設定がコントローラーに認識されていることを確認します。さらに、最新のPodテンプレートに一致するPod数と利用可能なPod数が、それぞれ指定数と同じになるのを待ちます。例えば`replicas: 1`なら、それぞれ1つです。次の3条件がすべて成立すると、KROはこのDeploymentを準備完了と判断します。
 
 ```yaml
-# platform/storage-app.yaml の抜粋
+# platform/storage-app.yaml の抜粋（説明コメントを追加）
 - id: deployment
   readyWhen:
+    # Deploymentコントローラーが最新の設定を認識している
     - ${deployment.status.observedGeneration == deployment.metadata.generation}
+    # 最新のPodテンプレートに一致するPod数が指定数と同じ
     - ${deployment.status.?updatedReplicas.orValue(0) == deployment.spec.replicas}
+    # readinessなどの条件を満たした利用可能なPod数が指定数と同じ
     - ${deployment.status.?availableReplicas.orValue(0) == deployment.spec.replicas}
 ```
+
+`.?updatedReplicas.orValue(0)`は、作成直後などでその項目がまだない場合に0として扱う書き方です。`availableReplicas`にも同じ処理を入れています。
+
+`availableReplicas`には古いPodも含まれるため、この3条件だけでローリング更新の完了までは保証していません。[Deploymentの各項目の定義](https://kubernetes.io/docs/reference/kubernetes-api/apps/deployment-v1/#DeploymentStatus)
 
 ## アプリ経由でS3の読み書きを確認する
 
