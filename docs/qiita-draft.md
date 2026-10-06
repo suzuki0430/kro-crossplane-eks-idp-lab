@@ -6,7 +6,7 @@
 
 KROについては7月のKubeConで関連セッションを聞いてから気になっていたのですが、そこに今回の発表が重なり、自分でも触ってみようと思いました。
 
-自社のIDPへの示唆にもなるかと思い、KROとCrossplaneを組み合わせて試すことにしました。
+自社のIDPでも使えそうか知りたくて、KROとCrossplaneを組み合わせて試すことにしました。
 
 題材は、S3にファイルを保存する簡単なアプリです。
 「このイメージでアプリを動かしたい」と伝えたら、Deploymentだけでなくそのアプリ用のS3とIAMも一緒に用意してくれる形です。
@@ -104,7 +104,7 @@ RGDでは、例えばAssociationがRoleのARNを参照し、DeploymentがAssocia
 
 S3やIAMのMRでは、Providerが「利用可能」と報告する`Ready=True`と、直近の同期処理が成功したことを示す`Synced=True`の両方を確認します。[MRの状態の説明](https://docs.crossplane.io/latest/managed-resources/managed-resources/#conditions)
 
-Deploymentでは、最新の設定がコントローラーに認識されていることを確認します。さらに、最新のPodテンプレートに一致するPod数と利用可能なPod数が、それぞれ指定数と同じになるのを待ちます。例えば`replicas: 1`なら、それぞれ1つです。次の3条件がすべて成立すると、KROはこのDeploymentを準備完了と判断します。
+KROは次の3条件がすべて成立したら、このDeploymentを準備完了と判断します。
 
 ```yaml
 # platform/storage-app.yaml の抜粋（説明コメントを追加）
@@ -206,9 +206,9 @@ spec:
 
 ここからは、KROを使わないこの構成を「Composition版」と呼び、先ほどの「KRO併用版」と比べます。
 
-Compositionでは、リソースの定義を組み立てる処理を**Function**というプログラムに任せます。FunctionはStorageAppの入力や既存リソースの状態を受け取り、Crossplaneに作成・維持してほしいリソースの一覧を返します。返されたDeploymentやMRをCrossplaneが作成・更新し、MRに対応するAWSリソースはProviderが操作します。[Composition Functionの説明](https://docs.crossplane.io/latest/composition/compositions/#how-composition-functions-work)
+Compositionでは、FunctionというプログラムがStorageAppの入力値や既存リソースの状態を見て、作成・維持するリソースの一覧を返します。Crossplaneはその一覧に合わせてリソースを管理します。
 
-今回は公開されている `function-go-templating` を使い、その入力となるGoテンプレートを書きました。このFunctionはEKS内のPodとして動き、テンプレートからDeploymentやS3のMRなどの定義を生成します。Compositionには、呼び出すFunctionと渡すテンプレートを設定します。
+今回は公開されている `function-go-templating` を使い、DeploymentやMRの定義をGoテンプレートに書きました。このFunctionはEKS内のPodとして動きます。
 
 DeploymentなどはCrossplane v2が直接扱えるため、provider-kubernetesも使っていません。
 
@@ -254,8 +254,6 @@ S3関連のMRでは、KRO併用版と同じく`managementPolicies`に`Delete`を
 
 ## さいごに
 
-今回のアプリとS3は、Crossplaneだけでも作れました。\
-開発者がStorageAppをapplyする操作は、どちらも同じです。\
-違ったのは、基盤側で依存関係や待つ条件を書く部分でした。\
-今回の定義なら、参照と`readyWhen`で追えるKROの方が扱いやすそうです。\
-自社で使うなら、[権限の切り分け](https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/blob/d0055ec1707e0ff02ef38f6d47fc2722541e0c35/docs/security-review.md)やデータの扱いも詰めたいです。
+今回のアプリとS3はCrossplaneだけでも作れました。
+開発者がStorageAppをapplyする操作はどちらも同じでしたが、基盤側で依存関係や待つ条件を書く部分が違いました。
+今回の定義なら、参照と`readyWhen`で追えるKROの方が扱いやすそうです。
