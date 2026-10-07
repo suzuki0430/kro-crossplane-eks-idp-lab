@@ -1,15 +1,16 @@
 # kro-crossplane-eks-idp-lab
 
-KRO + Crossplane + EKSで「S3付きアプリ」をセルフサービス化する、記事・IDP学習用のラボです。
+KRO + Crossplane + EKSで「S3付きアプリ」をセルフサービス化する、記事制作・社内開発者向け基盤（IDP）の学習用ラボです。
 ひとつの `StorageApp` からアプリ、専用S3、IAMロール、EKS Pod Identityを用意します。
-Ready判定、権限不足からの復旧、アプリ削除後のデータ保持と再接続まで検証します。
+準備完了（Ready）の判定、権限不足からの復旧、アプリ削除後のデータ保持と再接続まで検証します。
 
-**実行済みの検証結果は [docs/verification.md](docs/verification.md) に記録します。**
+**実行済みの検証結果は [docs/verification.md](docs/verification.md) に記録しています。**
 2026-10-02に新規EKS上で、実S3の読み書き・権限不足からの復旧・削除後の保持と再接続を検証しました。
 [検証スクリーンショット](docs/screenshots/) と [実環境で見つけた注意点](docs/verification.md#実awsで見つかった3点と修正) も残しています。
 2026-10-04にはKROを入れない新規EKSで [Composition単独版](docs/composition-comparison.md) も検証しました。
 [編集可能な構成図](docs/diagrams/) も用意しています。
-CIはPRとmainへの取り込み時に実行し、`Run workflow` からの手動実行にも対応します。
+CI（自動検査）はプルリクエスト（PR）の作成・更新と `main` への取り込み時に実行します。
+GitHub Actionsの画面にある `Run workflow`（ワークフロー実行）から手動でも実行できます。
 
 ```mermaid
 flowchart LR
@@ -22,7 +23,8 @@ flowchart LR
   Workload -->|短期認証情報で読み書き| Cloud
 ```
 
-既定の `COMPOSER=kro` では、Compositionは使わずKROがnamespaced Managed Resourceを直接生成します。
+CrossplaneのManaged Resource（MR）は、S3やIAMなどを管理するカスタムリソースです。
+既定の `COMPOSER=kro` では、Compositionは使わずKROが名前空間（Namespace）に属するMRを直接生成します。
 Crossplane v2単独でもKubernetesリソースを合成できるため、これは学習のための設計上の選択です。
 KRO本体はAWS APIを操作しません。S3やIAMの作成には、今回のAWS Providerのような実行担当が別に必要です。
 `COMPOSER=crossplane` では [XRD・Composition・Function](platform/composition/) を使います。
@@ -33,21 +35,22 @@ EKSとProviderの認証はeksctl / CloudFormationで先に用意し、起動依�
 
 | コンポーネント | 固定値 |
 |---|---|
-| KRO / Helm chart | 0.9.4 |
-| Crossplane / Helm chart | 2.4.2 |
+| KRO / Helmチャート | 0.9.4 |
+| Crossplane / Helmチャート | 2.4.2 |
 | AWS Provider（family / s3 / iam / eks） | 2.8.1 |
-| function-go-templating（Composition版のみ） | 0.13.0、[OCI digest固定](platform/composition/function.yaml) |
-| EKS | 1.36（パッチとplatformVersionは実環境で記録） |
-| kindのKubernetes | 1.36.4、digest固定 |
-| Go | 1.27.1、ビルダーイメージdigest固定 |
+| function-go-templating（Composition版のみ） | 0.13.0、[OCIダイジェスト固定](platform/composition/function.yaml) |
+| EKS | 1.36（パッチと `platformVersion` は実環境で記録） |
+| kindのKubernetes | 1.36.4、ダイジェスト固定 |
+| Go | 1.27.1、ビルダーイメージのダイジェスト固定 |
 | Helm / eksctl / kind | 3.22.0 / 0.230.0 / 0.33.0 |
 
 基本の一覧は [versions.env](versions.env)、Helmパッケージのハッシュは [charts.sha256](charts.sha256)。
+ダイジェストはイメージの内容を識別するハッシュ値です。同じバージョン名で内容が変わっても、取得するイメージを固定できます。
 AWS SDKは `app/go.mod` / `app/go.sum`、CRDはProvider 2.8.1のスナップショットとSHA256で固定します。
 EKSアドオンは初回作成時に1.36対応版を解決して `.local/addons.json` に保存し、再実行で再利用します。
 AWSが管理するEKSパッチやAMIを、永久に固定するという意味ではありません。
 
-今回のnamespaced MRは `*.aws.m.upbound.io/v1beta1` を使い、`deletionPolicy` を持ちません。
+今回の名前空間に属するMRは `*.aws.m.upbound.io/v1beta1` を使い、`deletionPolicy` を持ちません。
 S3保持は `managementPolicies: [Observe, Create, Update, LateInitialize]` で指定します。
 `providerConfigRef` には `name` と `kind` の両方が必要です。
 
@@ -73,9 +76,9 @@ APIは1〜3レプリカを許可します。リージョン、IAM権限、バケ
 
 - AWS CLI v2と検証アカウントへのSSOアクセス
 - Go 1.27.1、kubectl 1.36、make、uv、curl、jq、Docker
-- 検証中のEKS / EC2 / EBS / public IPv4 / S3 / ECR等の料金
+- 検証中のEKS / EC2 / EBS / パブリックIPv4 / S3 / ECR等の利用料金
 
-ワーカーノードは `m7i.xlarge` 1台。NAT Gatewayや外部Load Balancerは作りません。
+ワーカーノードは `m7i.xlarge` 1台。NATゲートウェイや外部ロードバランサーは作りません。
 公開サブネットのノードからAWS APIへ接続します。SSHは無効、Kubernetes APIの公開アクセスは管理者のIPv4 /32に限定します。
 ネットワーク構成と可用性は短時間の検証用です。
 
@@ -95,13 +98,13 @@ export PATH="$PWD/.local/bin:$PATH"
 次を順番に実行します。各ターゲットは `scripts/*.sh` を呼ぶため、直接実行しても構いません。
 
 ```bash
-make check test     # 静的検査、単体テスト、race detector
-make graph          # kind + 実KRO + 実CRD。AWSのstatusのみ模擬
-make composition    # kind + 実Crossplane + 実Function。AWSのstatusのみ模擬
+make check test     # 静的検査、単体テスト、データ競合検出
+make graph          # kind + 実KRO + 実CRD。AWSの状態（status）のみ模擬
+make composition    # kind + 実Crossplane + 実Function。AWSの状態（status）のみ模擬
 make cluster        # EKS、VPC、ノード、Pod Identity Agent等
 make bootstrap      # Provider用IAM、権限境界、Pod Identity、ECR
 make platform       # COMPOSERに応じた定義、Crossplane、6種類のMR、RBAC
-make image          # ECRへpushし、digestを保存
+make image          # ECRへプッシュし、ダイジェストを保存
 make demo           # 開発者ServiceAccountとしてStorageAppを作成
 make verify         # HTTPバイナリ往復・404・RBAC
 make verify-api     # storageId不変、replicas範囲、実1→2→1スケール
@@ -130,28 +133,28 @@ curl -f http://127.0.0.1:8080/objects/hello.txt
 | API | 意味 |
 |---|---|
 | `GET /healthz` | 生存確認。AWS障害でも成功 |
-| `GET /readyz` | Pod専用オブジェクトをPut/Get/Deleteし、内容一致を確認 |
+| `GET /readyz` | Pod専用オブジェクトを保存・取得・削除し、内容の一致を確認 |
 | `PUT /objects/{key}` | 最大1 MiBを `uploads/` 配下へ保存 |
 | `GET /objects/{key}` | 最大1 MiBを取得。存在しなければ404 |
 
-公開HTTP認証は実装していません。ClusterIPとlocalhostのport-forwardで使います。
-readiness probeはS3 APIリクエストを発生させます。障害時に一時オブジェクトの削除に失敗した場合も、
+公開HTTP認証は実装していません。ClusterIPのServiceに対して、`kubectl port-forward` でローカルホストから接続します。
+readiness probe（Podの準備状態を確認する処理）はS3 APIリクエストを発生させます。障害時に一時オブジェクトの削除に失敗した場合も、
 同じPodの `_health/` キーを再利用し、ユーザーデータは削除しません。
 
 ## 権限と運用の境界
 
 - ProviderもアプリもPod Identityを使用。AWSアクセスキーを保存しない。
 - Providerの権限をS3 / IAM / EKSに分離し、ラボの名前・IAMパス・クラスタに限定。
-- アプリIAMロールの作成時にpermissions boundaryを必須化。IAM Providerは境界を外せない。
+- アプリIAMロールの作成時に権限境界（permissions boundary）を必須化。IAM Providerは境界を外せない。
 - アプリは自身のバケットだけにアクセス。ユーザーオブジェクトの削除権限は持たない。
 - Pod Identityの信頼条件をクラスタARN、Namespace、ServiceAccountに限定。
-- Association直後の注入遅延に備え、アプリのIPv4用認証環境変数と専用トークン投影を明示。
-- KROのRBACはaggregationで必要な型だけ追加。開発者はMRやConfigMapを書き換えられない。
-- Crossplane本体は標準chart由来のクラスタ全体の権限を持つ。開発者用RBACとは別で、[IAM・認証レビュー](docs/security-review.md#composition版のrbac) に記録。
+- Pod Identityの関連付け直後に認証設定がPodへ渡るまでの遅延に備え、アプリのIPv4用認証環境変数と専用トークンのマウントを明示。
+- KROのRBAC（リソースへの操作権限）はClusterRoleの集約機能で必要な型だけ追加。開発者はMRやConfigMapを書き換えられない。
+- Crossplane本体は標準Helmチャート由来のクラスタ全体の権限を持つ。開発者用RBACとは別で、[IAM・認証レビュー](docs/security-review.md#composition版のrbac) に記録。
 - S3の公開ブロックとAES256暗号化も、アプリ削除時に保持。
-- アプリは非root、read-only filesystem、capabilitiesなし。
+- アプリはroot以外のユーザーで実行。ファイルシステムは読み取り専用にし、Linuxの追加権限（capabilities）はすべて無効化。
 
-共有Namespaceの学習デモです。悪意ある利用者間の分離、イメージ許可制、監査・バックアップ・保持期限・
+名前空間を共有する学習デモです。悪意ある利用者間の分離、イメージ許可制、監査・バックアップ・保持期限・
 管理クラスタの復旧・RGDの段階的更新は、自社IDPへの採用前に別途設計が必要です。
 
 ## 参考
