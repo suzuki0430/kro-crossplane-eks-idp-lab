@@ -20,7 +20,9 @@ aws iam put-role-policy --role-name "${role_name}" --policy-name "${policy_name}
 kubectl -n idp-lab wait --for=condition=Ready=false storageapp/demo --timeout=240s
 kubectl -n idp-lab get storageapp/demo -o yaml > "${REPO_DIR}/.local/experiment-failure.yaml"
 kubectl -n idp-lab logs deployment/storage-demo --tail=30 > "${REPO_DIR}/.local/experiment-failure.log"
+bash "${REPO_DIR}/scripts/capture-evidence.sh" failure
 restore_permission
 trap - EXIT
 kubectl -n idp-lab wait --for=condition=Ready storageapp/demo --timeout=240s
 printf 'PASS: denied S3 writes made Ready=False; removing the denial restored Ready=True.\n' | tee "${REPO_DIR}/.local/experiment-failure.txt"
+bash "${REPO_DIR}/scripts/capture-evidence.sh" recovered

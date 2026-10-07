@@ -4,7 +4,10 @@
 
 ```bash
 export KUBECONFIG="$PWD/.local/kubeconfig"
-kubectl get rgd storage-app -o yaml
+kubectl get rgd storage-app -o yaml  # KRO版
+# Composition版では次を確認
+# kubectl get xrd,composition,function
+# kubectl -n crossplane-system logs deployment/crossplane
 kubectl -n idp-lab get storageapp demo -o yaml
 kubectl -n idp-lab get managed
 kubectl -n idp-lab get pods
@@ -17,7 +20,7 @@ kubectl -n crossplane-system get pods
 MRの `Synced=False` はProviderの操作エラー。StorageAppの `storageMessage` / `identityMessage` /
 `associationMessage` と元のMRのConditionsを確認する。
 クラウド側がReadyでもS3読み書きに失敗すれば、PodとStorageAppのReadyがFalseになる。
-反映にはprobe周期・Deployment更新・KRO reconcileによる遅延がある。
+反映にはprobe周期・Deployment更新・選択したコントローラーのreconcileによる遅延がある。
 Readyは直近の観測結果であり、将来の可用性やバックアップ完了の保証ではない。
 
 ## 障害実験が中断した場合
@@ -44,8 +47,28 @@ finalizerを強制削除して成功扱いにしない。S3一覧は `.local/ret
 Bootstrap作成済みならそのstackも削除する。アプリ作成済みなら、先にアプリとMRの削除を完了させる。
 スクリプトは専用 `.local/kubeconfig` を使い、普段のkubectl設定を切り替えない。
 
+Composition版ではStorageApp自体の消滅後もGCで子の削除が進む場合があるため、
+スクリプトはnativeリソースと各MRの消滅まで待つ。
+
 ## 更新
 
 `versions.env`、Helmハッシュ、イメージdigest、Go依存、同じProviderタグのCRDをまとめて更新する。
-`make check test graph` の後、別LAB_IDで実EKS上の作成・失敗・保持・削除を確認する。
+`make check test graph composition` の後、別LAB_IDで実EKS上の作成・失敗・保持・削除を確認する。
 Helm更新だけでCRDも更新済みと仮定しない。既存IDPのin-placeアップグレードは本ラボの対象外。
+
+## 記事用の証跡
+
+`make verify failure retention` は、各段階のCLI出力を `.local/evidence/*.txt` に保存する。
+Ready、Deployment、6種類のMRのConditions、ファイルのSHA256、S3保護設定を記録する。
+障害状態はDenyを外す前、保持状態はStorageAppを再作成する前に採取する。
+
+```bash
+uv run --no-project python scripts/render-evidence.py .local/evidence
+# localhostだけに公開し、ブラウザで各HTMLを開いて撮影する
+uv run --no-project python -m http.server 18081 --bind 127.0.0.1 --directory .local/evidence
+```
+
+HTMLは保存済みの実CLI出力を表示するための画面で、AWSコンソールとは区別する。
+アカウントIDは採取時に `ACCOUNT_ID` へ置換する。公開前に内容を目視確認し、
+レビュー済みのテキストとスクリーンショットだけを `docs/` へコピーする。
+元のログやkubeconfig、認証情報を公開用ディレクトリに移さない。

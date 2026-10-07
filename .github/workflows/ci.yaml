@@ -1,6 +1,8 @@
 name: CI
 on:
-  # Validation is deferred for this implementation. Run manually when ready.
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,3 +32,11 @@ jobs:
       - run: bash scripts/install-tools.sh
       - run: echo "$PWD/.local/bin" >> "$GITHUB_PATH"
       - run: make graph
+  composition:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: bash scripts/install-tools.sh
+      - run: echo "$PWD/.local/bin" >> "$GITHUB_PATH"
+      - run: make composition

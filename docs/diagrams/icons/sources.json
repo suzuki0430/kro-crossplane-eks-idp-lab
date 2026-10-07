@@ -1,0 +1,68 @@
+{
+  "retrieved": "2026-10-06",
+  "awsPackage": "https://d1.awsstatic.com/onedam/marketing-channels/website/public/shared/architecture-icon-release/Icon-package_07312026.5846e92413caa21490223536cc97f1269e44fa92.zip",
+  "awsPackageSha256": "d2d166c453526471749d520e0db022c459abef759d2946cf2dd1d1c992dc6526",
+  "assets": [
+    {
+      "file": "aws-cloud.svg",
+      "source": "https://aws.amazon.com/architecture/icons/",
+      "archiveEntry": "Architecture-Group-Icons_07312026/AWS-Cloud-logo_32.svg",
+      "sha256": "63d73df1aac59dab323df732f82e196e359fb7b6370c0ca8e51e7b897cd350be"
+    },
+    {
+      "file": "aws-cloudformation.svg",
+      "source": "https://aws.amazon.com/architecture/icons/",
+      "archiveEntry": "Architecture-Service-Icons_07312026/Arch_Management-Tools/64/Arch_AWS-CloudFormation_64.svg",
+      "sha256": "6b49bc40b92438d199b60f35e59814264adcce3df4623cbe2bba2933dfcb9fd7"
+    },
+    {
+      "file": "aws-eks.svg",
+      "source": "https://aws.amazon.com/architecture/icons/",
+      "archiveEntry": "Architecture-Service-Icons_07312026/Arch_Containers/64/Arch_Amazon-Elastic-Kubernetes-Service_64.svg",
+      "sha256": "abda372bab3e7e0e873edf2b078972625b2cff255d8626fbf955546e71bdf9cb"
+    },
+    {
+      "file": "aws-iam.svg",
+      "source": "https://aws.amazon.com/architecture/icons/",
+      "archiveEntry": "Architecture-Service-Icons_07312026/Arch_Security-Identity/64/Arch_AWS-Identity-and-Access-Management_64.svg",
+      "sha256": "3135793557c065d0481a3985ccc0574b36278d56a2e2c5d59107d0d28f51b827"
+    },
+    {
+      "file": "aws-s3.svg",
+      "source": "https://aws.amazon.com/architecture/icons/",
+      "archiveEntry": "Architecture-Service-Icons_07312026/Arch_Storage/64/Arch_Amazon-Simple-Storage-Service_64.svg",
+      "sha256": "b92c5101cc6565dd12df37655802279f8fba0c719279f62f93106d26750b36c6"
+    },
+    {
+      "file": "aws-user.svg",
+      "source": "https://aws.amazon.com/architecture/icons/",
+      "archiveEntry": "Resource-Icons_07312026/Res_General-Icons/Res_48_Light/Res_User_48_Light.svg",
+      "sha256": "82cad1b559b84252e86f17ee9707ff9228e6c92816f207e4fde5daadaa346d38"
+    },
+    {
+      "file": "crossplane.svg",
+      "source": "https://raw.githubusercontent.com/cncf/artwork/002662490acb2303c7301acc0256c00790e03e9f/projects/crossplane/icon/color/crossplane-icon-color.svg",
+      "sha256": "79f72a5cd3c21a760bffabe60d953c75f06d8de8820e70ba0911a782a2d69fb3"
+    },
+    {
+      "file": "kubernetes-deploy.svg",
+      "source": "https://raw.githubusercontent.com/kubernetes/community/3bc2da62f72a7a05b8838014be60566668edc3e3/icons/svg/resources/unlabeled/deploy.svg",
+      "sha256": "d96f6e93a0f57ca9583b2120e3ddb4453afb5a29aa6d8c1360e8eb8e458489f7"
+    },
+    {
+      "file": "kubernetes-pod.svg",
+      "source": "https://raw.githubusercontent.com/kubernetes/community/3bc2da62f72a7a05b8838014be60566668edc3e3/icons/svg/resources/unlabeled/pod.svg",
+      "sha256": "3356f7ca970f811da2b1aa34a0f13e846255378727809ab6629837a842db0a2d"
+    },
+    {
+      "file": "kubernetes-sa.svg",
+      "source": "https://raw.githubusercontent.com/kubernetes/community/3bc2da62f72a7a05b8838014be60566668edc3e3/icons/svg/resources/unlabeled/sa.svg",
+      "sha256": "fd113e685c6842c074f8916cdd2424241fcaa64dabddce82f9ad60f9b1d93285"
+    },
+    {
+      "file": "kubernetes-svc.svg",
+      "source": "https://raw.githubusercontent.com/kubernetes/community/3bc2da62f72a7a05b8838014be60566668edc3e3/icons/svg/resources/unlabeled/svc.svg",
+      "sha256": "a86fad881253c4d7abbe7413c0efbca2e7dde7e54a55774f79349494bd823990"
+    }
+  ]
+}

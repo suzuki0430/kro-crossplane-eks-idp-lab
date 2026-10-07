@@ -28,6 +28,8 @@ load_lab() {
   set +a
   : "${AWS_PROFILE:?AWS_PROFILE is required}" "${AWS_REGION:?AWS_REGION is required}"
   : "${LAB_ID:?LAB_ID is required}" "${EXPECTED_ACCOUNT_ID:?EXPECTED_ACCOUNT_ID is required}"
+  export COMPOSER="${COMPOSER:-kro}"
+  case "${COMPOSER}" in kro|crossplane) ;; *) fail 'COMPOSER must be kro or crossplane.' ;; esac
   [[ "${LAB_ID}" =~ ^[a-z0-9]{6,12}$ ]] || fail 'LAB_ID must be 6-12 lowercase letters/digits.'
   [[ "${EXPECTED_ACCOUNT_ID}" =~ ^[0-9]{12}$ ]] || fail 'Invalid EXPECTED_ACCOUNT_ID.'
   [[ "${AWS_REGION}" =~ ^[a-z]{2}-[a-z]+-[0-9]+$ ]] || fail 'Use a commercial AWS region.'
@@ -54,4 +56,15 @@ assert_lab_cluster() {
 bootstrap_output() {
   aws cloudformation describe-stacks --stack-name "${BOOTSTRAP_STACK}" --output json |
     jq -er --arg key "${1:?Output key required}" '.Stacks[0].Outputs[] | select(.OutputKey==$key) | .OutputValue'
+}
+
+# Usage: wait_demo_resources_deleted. Wait for all children before S3 checks or teardown.
+# Crossplane uses Kubernetes garbage collection, which can outlive XR deletion.
+wait_demo_resources_deleted() {
+  local resource
+  for resource in deployment service serviceaccount buckets.s3.aws.m.upbound.io \
+    bucketpublicaccessblocks.s3.aws.m.upbound.io bucketserversideencryptionconfigurations.s3.aws.m.upbound.io \
+    roles.iam.aws.m.upbound.io rolepolicies.iam.aws.m.upbound.io podidentityassociations.eks.aws.m.upbound.io; do
+    kubectl -n idp-lab wait --for=delete "${resource}/storage-demo" --timeout=600s
+  done
 }

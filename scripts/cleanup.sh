@@ -9,6 +9,7 @@ require eksctl
 apps="$(kubectl get storageapps.platform.example.com --all-namespaces -o json)"
 [[ "$(jq '[.items[]|select(.metadata.namespace!="idp-lab" or .metadata.name!="demo")]|length' <<<"${apps}")" == 0 ]] || fail 'Unexpected StorageApps exist; refusing cluster cleanup.'
 kubectl -n idp-lab delete storageapp/demo --ignore-not-found --wait=true --timeout=600s
+wait_demo_resources_deleted
 # Keeping providers running until every MR disappears lets their finalizers finish.
 for resource in buckets.s3.aws.m.upbound.io bucketpublicaccessblocks.s3.aws.m.upbound.io \
   bucketserversideencryptionconfigurations.s3.aws.m.upbound.io roles.iam.aws.m.upbound.io \

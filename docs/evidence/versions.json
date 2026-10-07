@@ -1,0 +1,74 @@
+{
+  "capturedDate": "2026-10-02",
+  "region": "ap-northeast-1",
+  "testedImplementation": "77c4ab2",
+  "eks": {
+    "version": "1.36",
+    "platformVersion": "eks.14",
+    "status": "ACTIVE"
+  },
+  "kubernetes": "v1.36.4-eks-cfb47f5",
+  "node": {
+    "version": "1.36",
+    "releaseVersion": "1.36.4-20260930",
+    "amiType": "AL2023_x86_64_STANDARD",
+    "instanceTypes": [
+      "m7i.xlarge"
+    ],
+    "status": "ACTIVE"
+  },
+  "addons": [
+    {
+      "name": "vpc-cni",
+      "version": "v1.22.4-eksbuild.3",
+      "status": "ACTIVE",
+      "issues": []
+    },
+    {
+      "name": "kube-proxy",
+      "version": "v1.36.0-eksbuild.25",
+      "status": "ACTIVE",
+      "issues": []
+    },
+    {
+      "name": "coredns",
+      "version": "v1.14.6-eksbuild.4",
+      "status": "ACTIVE",
+      "issues": []
+    },
+    {
+      "name": "eks-pod-identity-agent",
+      "version": "v1.3.10-eksbuild.3",
+      "status": "ACTIVE",
+      "issues": []
+    },
+    {
+      "name": "metrics-server",
+      "version": "v0.9.0-eksbuild.11",
+      "status": "ACTIVE",
+      "issues": []
+    }
+  ],
+  "providers": [
+    {
+      "name": "provider-aws-eks",
+      "package": "xpkg.crossplane.io/crossplane-contrib/provider-aws-eks:v2.8.1"
+    },
+    {
+      "name": "provider-aws-iam",
+      "package": "xpkg.crossplane.io/crossplane-contrib/provider-aws-iam:v2.8.1"
+    },
+    {
+      "name": "provider-aws-s3",
+      "package": "xpkg.crossplane.io/crossplane-contrib/provider-aws-s3:v2.8.1"
+    },
+    {
+      "name": "provider-family-aws",
+      "package": "xpkg.crossplane.io/crossplane-contrib/provider-family-aws:v2.8.1"
+    }
+  ],
+  "kro": "0.9.4",
+  "crossplane": "2.4.2",
+  "imageDigest": "sha256:fe711ad2f32a287433df85ec66c39fee5201e8aae25ff14318d38a9c4241ab44",
+  "ci": "https://github.com/suzuki0430/kro-crossplane-eks-idp-lab/actions/runs/37007879958"
+}

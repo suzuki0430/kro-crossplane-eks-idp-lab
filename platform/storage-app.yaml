@@ -214,8 +214,20 @@ spec:
                     - {name: AWS_REGION, value: '${platformConfig.data.region}'}
                     - {name: S3_BUCKET, value: "${bucket.metadata.annotations['crossplane.io/external-name']}"}
                     - {name: AWS_EC2_METADATA_DISABLED, value: 'true'}
+                    # Association creation is eventually consistent. Declaring the
+                    # documented IPv4 agent contract avoids relying on admission
+                    # injection being ready for the first Pod. SDK retries can then
+                    # recover as the association becomes effective, without a restart.
+                    - name: AWS_CONTAINER_CREDENTIALS_FULL_URI
+                      value: http://169.254.170.23/v1/credentials
+                    - name: AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE
+                      value: /var/run/secrets/pods.eks.amazonaws.com/serviceaccount/eks-pod-identity-token
                     - name: HOSTNAME
                       valueFrom: {fieldRef: {fieldPath: metadata.name}}
+                  volumeMounts:
+                    - name: eks-pod-identity-token
+                      mountPath: /var/run/secrets/pods.eks.amazonaws.com/serviceaccount
+                      readOnly: true
                   readinessProbe:
                     httpGet: {path: /readyz, port: http}
                     periodSeconds: 10
@@ -232,6 +244,15 @@ spec:
                     readOnlyRootFilesystem: true
                     allowPrivilegeEscalation: false
                     capabilities: {drop: [ALL]}
+              volumes:
+                - name: eks-pod-identity-token
+                  projected:
+                    defaultMode: 420
+                    sources:
+                      - serviceAccountToken:
+                          audience: pods.eks.amazonaws.com
+                          expirationSeconds: 86400
+                          path: eks-pod-identity-token
     - id: service
       template:
         apiVersion: v1

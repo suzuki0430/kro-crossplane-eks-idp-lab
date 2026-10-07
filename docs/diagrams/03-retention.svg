@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="930" viewBox="0 0 1280 930" role="img" aria-labelledby="title desc">
+  <title id="title">Delete the app, retain the data and reconnect with the same ID</title>
+  <desc id="desc">Upload a file, then delete StorageApp. Kubernetes resources, managed resources, app IAM and the Pod Identity association are deleted. S3 data, public access block and encryption remain. Recreating the app with the same storageId allows a new Pod to retrieve the original file over HTTP GET with a matching SHA-256 hash.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" fill="#526279"/></marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #182d47; }
+      .title { font-size: 34px; font-weight: 700; } .label { font-size: 26px; font-weight: 600; }
+      .body { font-size: 22px; } .small { font-size: 20px; fill: #526279; }
+    </style>
+  </defs>
+  <rect width="1280" height="930" fill="#f8fafc"/>
+  <text x="48" y="60" class="title">Separate app and data lifecycles</text>
+  <text x="48" y="100" class="body">Reuse storageId: demo within the same AWS account and lab configuration</text>
+
+  <rect x="48" y="148" width="360" height="504" rx="20" fill="#edf3fb" stroke="#b7cbe3"/>
+  <rect x="460" y="148" width="360" height="504" rx="20" fill="#fff4df" stroke="#d4af67"/>
+  <rect x="872" y="148" width="360" height="504" rx="20" fill="#edf3fb" stroke="#b7cbe3"/>
+  <text x="76" y="193" class="label">1. Create and upload</text>
+  <text x="488" y="193" class="label">2. Delete StorageApp</text>
+  <text x="900" y="193" class="label">3. Reuse the same ID</text>
+  <path d="M413 181 H454" fill="none" stroke="#526279" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M825 181 H866" fill="none" stroke="#526279" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="72" y="222" width="312" height="194" rx="12" fill="white"/>
+  <text x="94" y="260" class="label">App running</text>
+  <text x="94" y="304" class="body">Deployment / MR</text>
+  <text x="94" y="338" class="body">IAM / Association</text>
+  <text x="94" y="387" class="small">Upload via HTTP PUT</text>
+
+  <rect x="484" y="222" width="312" height="194" rx="12" fill="white"/>
+  <text x="506" y="260" class="label">App resources deleted</text>
+  <text x="506" y="304" class="body">Kubernetes MRs removed</text>
+  <text x="506" y="338" class="body">IAM / Association deleted</text>
+  <text x="506" y="387" class="small">Check S3 via AWS CLI</text>
+
+  <rect x="896" y="222" width="312" height="194" rx="12" fill="white"/>
+  <text x="918" y="260" class="label">New Pod running</text>
+  <text x="918" y="304" class="body">MRs / IAM recreated</text>
+  <text x="918" y="338" class="body">Connect to the same bucket</text>
+  <text x="918" y="387" class="small">Retrieve via HTTP GET</text>
+
+  <rect x="72" y="447" width="312" height="164" rx="12" fill="#e1f4ee" stroke="#61a899"/>
+  <rect x="484" y="447" width="312" height="164" rx="12" fill="#e1f4ee" stroke="#61a899"/>
+  <rect x="896" y="447" width="312" height="164" rx="12" fill="#e1f4ee" stroke="#61a899"/>
+  <text x="228" y="488" text-anchor="middle" class="label" style="fill:#087f70">Store in S3</text>
+  <text x="640" y="488" text-anchor="middle" class="label" style="fill:#087f70">Retain S3</text>
+  <text x="1052" y="488" text-anchor="middle" class="label" style="fill:#087f70">Reuse S3</text>
+  <text x="228" y="532" text-anchor="middle" class="body">uploads/probe.bin</text>
+  <text x="640" y="532" text-anchor="middle" class="body">Original file remains</text>
+  <text x="1052" y="532" text-anchor="middle" class="body">No re-upload</text>
+  <text x="228" y="580" text-anchor="middle" class="small">Public access block + AES256</text>
+  <text x="640" y="580" text-anchor="middle" class="small">Protection settings remain</text>
+  <text x="1052" y="580" text-anchor="middle" class="small">New Pod: restartCount = 0</text>
+
+  <rect x="48" y="690" width="1184" height="100" rx="16" fill="#182d47"/>
+  <text x="640" y="732" text-anchor="middle" class="label" style="fill:white">Original file = S3 download after deletion = HTTP GET via new Pod</text>
+  <text x="640" y="770" text-anchor="middle" class="body" style="fill:#e0ecfa">All three SHA-256 hashes match</text>
+  <text x="48" y="839" class="small">S3 MRs exclude Delete from managementPolicies. Retention is not a substitute for backup.</text>
+  <text x="48" y="874" class="small">Later, EKS was also deleted; S3 data and protection settings were separately verified to remain.</text>
+  <text x="48" y="909" class="small">Live AWS test: 2026-10-02. Arbitrary bucket import and recovery to another cluster were not tested.</text>
+</svg>
