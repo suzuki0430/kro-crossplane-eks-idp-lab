@@ -1,10 +1,11 @@
-# Pinned AWS Provider CRDs
+# バージョンを固定したAWS ProviderのCRD
 
-These unmodified schemas come from `crossplane-contrib/provider-upjet-aws` tag
-`v2.8.1`, under `package/crds/`. Hashes are recorded in `tests/crds.sha256`.
+ここにあるCRD（カスタムリソースの定義）は、`crossplane-contrib/provider-upjet-aws` の
+`v2.8.1` タグの `package/crds/` から取得した、変更を加えていないスキーマです。
+各ファイルのハッシュは `tests/crds.sha256` に記録しています。
 
-Source: https://github.com/crossplane-contrib/provider-upjet-aws/tree/v2.8.1/package/crds
+取得元：[AWS Provider v2.8.1のCRD](https://github.com/crossplane-contrib/provider-upjet-aws/tree/v2.8.1/package/crds)
 
-The upstream project is Apache-2.0 licensed; see LICENSE in this directory.
-Install these only in disposable schema-test clusters. EKS obtains the same APIs
-from the actual Crossplane Provider packages.
+配布元のプロジェクトのライセンスはApache-2.0です。このディレクトリの [LICENSE](LICENSE) を参照してください。
+これらのCRDをインストールするのは、スキーマ検証用の使い捨てクラスタだけです。
+EKSには、実際のCrossplane Providerパッケージから同じAPIを導入します。

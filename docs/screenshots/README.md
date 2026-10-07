@@ -1,28 +1,29 @@
-# Article screenshots
+# 検証スクリーンショット
 
-All visible captions and UI labels are in English, for reuse on Qiita and dev.to.
-The screenshots distinguish the actual AWS console from browser views of saved CLI output.
+Qiitaとdev.toで共通の画像を使えるよう、画像内の説明と画面の表示言語は英語に統一しています。
+AWSコンソールの画面と、保存したCLI出力をブラウザで表示した画面を区別して記録しています。
 
-| Image | Source | Validation / capture date (JST) |
+| 画像 | 出典・確認内容 | 検証日・撮影日（日本時間） |
 |---|---|---|
-| [01-eks-active.jpg](01-eks-active.jpg) | Actual AWS console: the new **Composition-only** EKS `idplab-cp1004a` is Active, Kubernetes 1.36 | 2026-10-04 |
-| [02-ready.jpg](02-ready.jpg) | [KRO run: ready](../evidence/ready.txt). Six MRs and the app are ready; the binary HTTP round trip matches | Validated Oct 2; English view captured Oct 4 |
-| [03-failure.jpg](03-failure.jpg) | [KRO run: failure](../evidence/failure.txt). Denying health-probe PutObject leaves MRs ready while app readiness fails | Validated Oct 2; English view captured Oct 4 |
-| [04-recovered.jpg](04-recovered.jpg) | [KRO run: recovered](../evidence/recovered.txt). Removing the test Deny restores readiness | Validated Oct 2; English view captured Oct 4 |
-| [05-retained.jpg](05-retained.jpg) | [KRO run: retained](../evidence/retained.txt). Original data, public-access block and encryption survive app deletion | Validated Oct 2; English view captured Oct 4 |
-| [06-reconnected.jpg](06-reconnected.jpg) | [KRO run: reconnected](../evidence/reconnected.txt). A newly created Pod reads the original file without another upload | Validated Oct 2; English view captured Oct 4 |
-| [07-s3-object-retained.jpg](07-s3-object-retained.jpg) | Actual AWS console: the **original KRO-run** `uploads/probe.bin`, 39 bytes, still has its Oct 2 modification time | Captured Oct 4 |
-| [08-eks-deleted.jpg](08-eks-deleted.jpg) | Actual AWS console: Tokyo has zero EKS clusters after both labs have been removed | Captured Oct 4 |
-| [09-composition-ready.jpg](09-composition-ready.jpg) | [Composition run: ready](../evidence/composition/ready.txt). The same app behavior with no KRO installed | 2026-10-04 |
-| [10-composition-reconnected.jpg](10-composition-reconnected.jpg) | [Composition run: reconnected](../evidence/composition/reconnected.txt). All three SHA256 values match | 2026-10-04 |
+| [01-eks-active.jpg](01-eks-active.jpg) | AWSコンソール：**Composition単独版**の新規EKS `idplab-cp1004a` がActive。Kubernetes 1.36 | 2026-10-04 |
+| [02-ready.jpg](02-ready.jpg) | [KRO併用版：準備完了](../evidence/ready.txt)。6種類のMRとアプリが準備完了となり、HTTPで保存・取得したバイナリが一致 | 検証：2026-10-02／英語画面の撮影：2026-10-04 |
+| [03-failure.jpg](03-failure.jpg) | [KRO併用版：権限不足](../evidence/failure.txt)。準備状態の確認に使うPutObjectを拒否すると、MRはReadyのままアプリが準備未完了になる | 検証：2026-10-02／英語画面の撮影：2026-10-04 |
+| [04-recovered.jpg](04-recovered.jpg) | [KRO併用版：復旧](../evidence/recovered.txt)。検証用のDenyを解除すると準備完了へ戻る | 検証：2026-10-02／英語画面の撮影：2026-10-04 |
+| [05-retained.jpg](05-retained.jpg) | [KRO併用版：データ保持](../evidence/retained.txt)。アプリ削除後も元データ、公開アクセスのブロック設定、暗号化設定が残る | 検証：2026-10-02／英語画面の撮影：2026-10-04 |
+| [06-reconnected.jpg](06-reconnected.jpg) | [KRO併用版：再接続](../evidence/reconnected.txt)。新しいPodから再アップロードせずに元ファイルを取得 | 検証：2026-10-02／英語画面の撮影：2026-10-04 |
+| [07-s3-object-retained.jpg](07-s3-object-retained.jpg) | AWSコンソール：**元のKRO併用版**の `uploads/probe.bin`（39バイト）が残り、更新日時も10月2日のまま | 撮影：2026-10-04 |
+| [08-eks-deleted.jpg](08-eks-deleted.jpg) | AWSコンソール：両方のラボを片付けたあと、東京リージョンのEKSクラスタが0件 | 撮影：2026-10-04 |
+| [09-composition-ready.jpg](09-composition-ready.jpg) | [Composition単独版：準備完了](../evidence/composition/ready.txt)。KROを入れずに同じアプリの動作を確認 | 2026-10-04 |
+| [10-composition-reconnected.jpg](10-composition-reconnected.jpg) | [Composition単独版：再接続](../evidence/composition/reconnected.txt)。3つのSHA256がすべて一致 | 2026-10-04 |
 
-The CLI images use `scripts/render-evidence.py` to display captured text, followed by a browser screenshot.
-The Oct 2 CLI records, timestamps, statuses, error text and hashes are unchanged; only the surrounding captions were translated.
-The view filenames `composition-ready.txt` and `composition-reconnected.txt` are copies of the corresponding records in `docs/evidence/composition/`.
+CLI出力の画像は、`scripts/render-evidence.py` で保存済みのテキストを表示し、ブラウザで撮影したものです。
+10月2日のCLI記録、時刻、状態、エラー文、ハッシュは変更せず、周囲の説明だけを英語にしています。
+表示用の `composition-ready.txt` と `composition-reconnected.txt` は、`docs/evidence/composition/` 内の対応する記録をコピーしたものです。
 
-Console images 01, 07 and 08 were recaptured from the English AWS console, not translated over old pixels.
-Crops exclude account/session information. Account IDs in CLI records are replaced with `ACCOUNT_ID` before publication.
-Image 01 now shows the Oct 4 comparison cluster, not the deleted Oct 2 cluster.
+画像01・07・08は、AWSコンソールの表示言語を英語にして撮り直しています。
+アカウント・セッション情報は撮影範囲から除外し、CLI記録内のアカウントIDは公開前に `ACCOUNT_ID` へ置換しています。
+画像01に写っているのは、削除済みの10月2日のクラスタではなく、10月4日に用意した比較用クラスタです。
 
-These are historical observations, not live dashboards. See the [KRO validation](../verification.md),
-[Composition comparison](../composition-comparison.md), and [Composition cleanup evidence](../evidence/composition/cleanup.txt).
+画像は検証時点の記録です。現在の環境の状態は示していません。
+詳細は [KRO併用版の検証記録](../verification.md)、[Composition単独版との比較](../composition-comparison.md)、
+[Composition単独版の片付け記録](../evidence/composition/cleanup.txt) を参照してください。
