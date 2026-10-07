@@ -6,10 +6,9 @@ Ready判定、権限不足からの復旧、アプリ削除後のデータ保持
 
 **実行済みの検証結果は [docs/verification.md](docs/verification.md) に記録します。**
 2026-10-02に新規EKS上で、実S3の読み書き・権限不足からの復旧・削除後の保持と再接続を検証しました。
-[記事用スクリーンショット](docs/screenshots/) と [実環境で見つけた注意点](docs/verification.md#実awsで見つかった3点と修正) も残しています。
+[検証スクリーンショット](docs/screenshots/) と [実環境で見つけた注意点](docs/verification.md#実awsで見つかった3点と修正) も残しています。
 2026-10-04にはKROを入れない新規EKSで [Composition単独版](docs/composition-comparison.md) も検証しました。
-[Qiita記事の下書き](docs/qiita-draft.md) は英語のスクショ・図入りで、感想の追記欄があります。
-[編集・公開用メモ](docs/article-notes.md) と [編集可能な図の元データ](docs/diagrams/) も用意しています。
+[編集可能な構成図](docs/diagrams/) も用意しています。
 CIはPRとmainへの取り込み時に実行し、`Run workflow` からの手動実行にも対応します。
 
 ```mermaid
@@ -162,4 +161,3 @@ readiness probeはS3 APIリクエストを発生させます。障害時に一�
 - [AWS Provider 2.8.1](https://github.com/crossplane-contrib/provider-upjet-aws/releases/tag/v2.8.1)
 - [Crossplane v2の変更](https://docs.crossplane.io/v2.4/whats-new/)
 - [EKS Pod Identityの信頼ポリシー](https://docs.aws.amazon.com/eks/latest/userguide/pod-id-role.html)
-- [記事用メモ](docs/article-notes.md)

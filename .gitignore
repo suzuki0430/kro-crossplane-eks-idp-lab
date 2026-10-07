@@ -9,3 +9,7 @@ app/server
 
 __pycache__/
 .pytest_cache/
+
+# Article drafts and editorial notes are kept locally.
+/docs/qiita-draft.md
+/docs/article-notes.md
